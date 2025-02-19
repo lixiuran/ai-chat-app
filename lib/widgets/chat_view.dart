@@ -12,7 +12,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:io';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:ai_app/widgets/markdown_text.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ChatView extends ConsumerWidget {
@@ -197,58 +197,12 @@ class ChatView extends ConsumerWidget {
 
   Widget _buildMessageContent(types.Message message, BuildContext context) {
     if (message is types.TextMessage) {
-      return Container(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.7,
-        ),
-        child: MarkdownBody(
-          data: message.text,
-          selectable: true,
-          styleSheet: MarkdownStyleSheet(
-            p: TextStyle(
-              color: message.author.id == 'user'
-                  ? Theme.of(context).colorScheme.onPrimary
-                  : Theme.of(context).colorScheme.onSurfaceVariant,
-              fontSize: 16,
-            ),
-            code: TextStyle(
-              color: message.author.id == 'user'
-                  ? Theme.of(context).colorScheme.onPrimary
-                  : Theme.of(context).colorScheme.onSurfaceVariant,
-              backgroundColor: message.author.id == 'user'
-                  ? Theme.of(context).colorScheme.onPrimary.withOpacity(0.1)
-                  : Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.1),
-              fontSize: 14,
-            ),
-            codeblockDecoration: BoxDecoration(
-              color: message.author.id == 'user'
-                  ? Theme.of(context).colorScheme.onPrimary.withOpacity(0.1)
-                  : Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            blockquote: TextStyle(
-              color: message.author.id == 'user'
-                  ? Theme.of(context).colorScheme.onPrimary.withOpacity(0.8)
-                  : Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.8),
-              fontSize: 16,
-            ),
-            blockquoteDecoration: BoxDecoration(
-              border: Border(
-                left: BorderSide(
-                  color: message.author.id == 'user'
-                      ? Theme.of(context).colorScheme.onPrimary.withOpacity(0.5)
-                      : Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5),
-                  width: 4,
-                ),
-              ),
-            ),
-          ),
-          onTapLink: (text, href, title) {
-            if (href != null) {
-              launchUrl(Uri.parse(href));
-            }
-          },
-        ),
+      return MarkdownText(
+        text: message.text,
+        textColor: message.author.id == 'user'
+            ? Theme.of(context).colorScheme.onPrimary
+            : Theme.of(context).colorScheme.onSurfaceVariant,
+        maxWidth: MediaQuery.of(context).size.width * 0.7,
       );
     } else if (message is types.ImageMessage) {
       return Column(

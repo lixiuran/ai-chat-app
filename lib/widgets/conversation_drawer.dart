@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ai_app/providers/conversation_provider.dart';
 import 'package:ai_app/models/conversation.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 
 class ConversationDrawer extends ConsumerWidget {
   const ConversationDrawer({super.key});
@@ -13,89 +14,244 @@ class ConversationDrawer extends ConsumerWidget {
     final currentConversationId = ref.watch(currentConversationProvider);
 
     return Drawer(
+      backgroundColor: Theme.of(context).colorScheme.surface,
       child: Column(
         children: [
-          DrawerHeader(
+          // 抽屉头部
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary,
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
             ),
-            child: Center(
-              child: Text(
-                '对话历史',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onPrimary,
-                  fontSize: 24,
-                ),
+            child: SafeArea(
+              bottom: false,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        child: const Icon(
+                          Icons.chat_outlined,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'AI 助手',
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // 新建对话按钮
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
+                      await ref
+                          .read(currentConversationProvider.notifier)
+                          .createAndSetNewConversation('新对话 $now');
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                      }
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('新建对话'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Theme.of(context).colorScheme.primary,
+                      minimumSize: const Size(double.infinity, 44),
+                      side: BorderSide(
+                        color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-          ListTile(
-            leading: const Icon(Icons.add),
-            title: const Text('新建对话'),
-            onTap: () async {
-              final now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
-              final id = await ref
-                  .read(currentConversationProvider.notifier)
-                  .createAndSetNewConversation('新对话 $now');
-              if (context.mounted) {
-                Navigator.pop(context);
-              }
-            },
-          ),
-          const Divider(),
+
+          // 对话列表
           Expanded(
-            child: ListView.builder(
-              itemCount: conversations.length,
-              itemBuilder: (context, index) {
-                final conversation = conversations[index];
-                return ListTile(
-                  selected: conversation.id == currentConversationId,
-                  leading: const Icon(Icons.chat_bubble_outline),
-                  title: Text(conversation.title),
-                  subtitle: Text(
-                    DateFormat('yyyy-MM-dd HH:mm')
-                        .format(conversation.createdAt),
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: () {
-                      showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('删除对话'),
-                          content: const Text('确定要删除这个对话吗？'),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text('取消'),
+            child: conversations.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.chat_bubble_outline,
+                          size: 48,
+                          color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          '暂无对话',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: conversations.length,
+                    itemBuilder: (context, index) {
+                      final conversation = conversations[index];
+                      final isSelected = conversation.id == currentConversationId;
+                      final lastMessage = conversation.messagesList.isNotEmpty
+                          ? conversation.messagesList.last
+                          : null;
+                      
+                      return Dismissible(
+                        key: Key(conversation.id),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          color: Theme.of(context).colorScheme.error,
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 16),
+                          child: Icon(
+                            Icons.delete_outline,
+                            color: Theme.of(context).colorScheme.onError,
+                          ),
+                        ),
+                        confirmDismiss: (direction) async {
+                          return await showDialog<bool>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('删除对话'),
+                              content: const Text('确定要删除这个对话吗？'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context, false),
+                                  child: const Text('取消'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context, true),
+                                  child: const Text('删除'),
+                                ),
+                              ],
                             ),
-                            TextButton(
-                              onPressed: () {
-                                ref
-                                    .read(conversationsProvider.notifier)
-                                    .deleteConversation(conversation.id);
-                                if (conversation.id == currentConversationId) {
-                                  ref
-                                      .read(currentConversationProvider.notifier)
-                                      .setCurrentConversation(null);
-                                }
-                                Navigator.pop(context);
-                              },
-                              child: const Text('删除'),
+                          ) ?? false;
+                        },
+                        onDismissed: (direction) {
+                          ref
+                              .read(conversationsProvider.notifier)
+                              .deleteConversation(conversation.id);
+                          if (conversation.id == currentConversationId) {
+                            ref
+                                .read(currentConversationProvider.notifier)
+                                .setCurrentConversation(null);
+                          }
+                        },
+                        child: ListTile(
+                          selected: isSelected,
+                          selectedTileColor: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
+                          leading: CircleAvatar(
+                            backgroundColor: isSelected
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(context).colorScheme.surfaceVariant,
+                            child: Icon(
+                              Icons.chat_bubble_outline,
+                              color: isSelected
+                                  ? Theme.of(context).colorScheme.onPrimary
+                                  : Theme.of(context).colorScheme.primary,
+                              size: 20,
                             ),
-                          ],
+                          ),
+                          title: Text(
+                            conversation.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: lastMessage != null
+                              ? Text(
+                                  lastMessage is types.TextMessage
+                                      ? lastMessage.text
+                                      : lastMessage is types.ImageMessage
+                                          ? '[图片]'
+                                          : '[文件]',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                      ),
+                                )
+                              : Text(
+                                  DateFormat('yyyy-MM-dd HH:mm').format(conversation.createdAt),
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                      ),
+                                ),
+                          onTap: () {
+                            ref
+                                .read(currentConversationProvider.notifier)
+                                .setCurrentConversation(conversation.id);
+                            Navigator.pop(context);
+                          },
                         ),
                       );
                     },
                   ),
-                  onTap: () {
-                    ref
-                        .read(currentConversationProvider.notifier)
-                        .setCurrentConversation(conversation.id);
-                    Navigator.pop(context);
-                  },
-                );
-              },
+          ),
+
+          // 底部登录信息
+          Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              border: Border(
+                top: BorderSide(
+                  color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.2),
+                ),
+              ),
+            ),
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                      child: Icon(
+                        Icons.person_outline,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '游客模式',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          Text(
+                            '点击登录账号',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.settings_outlined),
+                      onPressed: () {
+                        // TODO: 打开设置页面
+                      },
+                      tooltip: '设置',
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ],

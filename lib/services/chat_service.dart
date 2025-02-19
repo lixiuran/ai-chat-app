@@ -214,6 +214,12 @@ class ChatService {
   Future<String> _callDeepSeek(String message, AIModel model, String apiKey) async {
     try {
       developer.log('Calling DeepSeek API...');
+      
+      // 检查消息是否包含图片提示
+      if (message.contains('我发送了一张图片')) {
+        return "抱歉，DeepSeek Chat 模型目前不支持直接的图片分析功能。您可以尝试描述图片内容，我会基于您的描述进行回答。";
+      }
+
       final response = await _dio.post(
         'https://api.deepseek.com/v1/chat/completions',
         options: Options(
@@ -244,6 +250,13 @@ class ChatService {
   Stream<String> _callDeepSeekStream(String message, AIModel model, String apiKey) async* {
     try {
       developer.log('Calling DeepSeek API with streaming...');
+      
+      // 检查消息是否包含图片提示
+      if (message.contains('我发送了一张图片')) {
+        yield "抱歉，DeepSeek Chat 模型目前不支持直接的图片分析功能。您可以尝试描述图片内容，我会基于您的描述进行回答。";
+        return;
+      }
+
       final response = await _dio.post(
         'https://api.deepseek.com/v1/chat/completions',
         options: Options(

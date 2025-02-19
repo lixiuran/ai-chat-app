@@ -425,8 +425,9 @@ class ChatView extends ConsumerWidget {
     if (result != null) {
       final bytes = await result.readAsBytes();
       final image = await _saveFile(bytes, result.name);
-
-      final message = types.ImageMessage(
+      
+      // 创建图片消息
+      final imageMessage = types.ImageMessage(
         author: const types.User(id: 'user'),
         createdAt: DateTime.now().millisecondsSinceEpoch,
         id: const Uuid().v4(),
@@ -435,14 +436,32 @@ class ChatView extends ConsumerWidget {
         uri: image.path,
       );
 
+      // 更新会话，添加图片消息
       final updatedMessages = [
         ...currentConversation.messages,
-        _messageToJson(message),
+        _messageToJson(imageMessage),
       ];
 
       ref.read(conversationsProvider.notifier).updateConversation(
             currentConversation.copyWith(messages: updatedMessages),
           );
+
+      // 显示提示对话框
+      if (context.mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('图片已上传'),
+            content: const Text('由于当前模型不支持直接的图片分析，您可以手动描述图片内容，我会基于您的描述进行回答。'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('我知道了'),
+              ),
+            ],
+          ),
+        );
+      }
     }
   }
 

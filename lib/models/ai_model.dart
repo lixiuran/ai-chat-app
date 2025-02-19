@@ -50,4 +50,10 @@ final defaultModels = [
     provider: 'DeepSeek',
     maxTokens: 8192,
   ),
+  const AIModel(
+    id: 'deepseek-chat',
+    name: 'DeepSeek Chat',
+    provider: 'DeepSeek',
+    maxTokens: 8192,
+  ),
 ]; 

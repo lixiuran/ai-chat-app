@@ -29,6 +29,7 @@ class ChatView extends ConsumerWidget {
     final isLoading = ref.watch(isLoadingProvider);
     final messages = currentConversation.messagesList.reversed.toList();
     final textController = TextEditingController();
+    final scrollController = ScrollController();
 
     return Column(
       children: [
@@ -37,6 +38,7 @@ class ChatView extends ConsumerWidget {
           child: Stack(
             children: [
               ListView.builder(
+                controller: scrollController,
                 reverse: true,
                 padding: const EdgeInsets.all(16),
                 itemCount: messages.length,
@@ -46,48 +48,23 @@ class ChatView extends ConsumerWidget {
                   
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 16.0),
-                    child: Row(
-                      mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (!isUser) ...[
-                          CircleAvatar(
-                            backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                            child: Icon(
-                              Icons.smart_toy_outlined,
-                              color: Theme.of(context).colorScheme.primary,
+                    child: Center(
+                      child: Container(
+                        width: MediaQuery.of(context).size.width * 0.9,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                        Flexible(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            decoration: BoxDecoration(
-                              color: isUser
-                                  ? Theme.of(context).colorScheme.primary
-                                  : Theme.of(context).colorScheme.surfaceVariant,
-                              borderRadius: BorderRadius.only(
-                                topLeft: const Radius.circular(20),
-                                topRight: const Radius.circular(20),
-                                bottomLeft: Radius.circular(isUser ? 20 : 4),
-                                bottomRight: Radius.circular(isUser ? 4 : 20),
-                              ),
-                            ),
-                            child: _buildMessageContent(message, context),
-                          ),
+                          ],
                         ),
-                        if (isUser) ...[
-                          const SizedBox(width: 8),
-                          CircleAvatar(
-                            backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                            child: Icon(
-                              Icons.person_outline,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                          ),
-                        ],
-                      ],
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: _buildMessageContent(message, context),
+                      ),
                     ),
                   );
                 },
@@ -200,9 +177,9 @@ class ChatView extends ConsumerWidget {
       return MarkdownText(
         text: message.text,
         textColor: message.author.id == 'user'
-            ? Theme.of(context).colorScheme.onPrimary
-            : Theme.of(context).colorScheme.onSurfaceVariant,
-        maxWidth: MediaQuery.of(context).size.width * 0.7,
+            ? Theme.of(context).colorScheme.primary
+            : Theme.of(context).colorScheme.onSurface,
+        maxWidth: MediaQuery.of(context).size.width * 0.9,
       );
     } else if (message is types.ImageMessage) {
       return Column(
@@ -223,9 +200,7 @@ class ChatView extends ConsumerWidget {
               child: Text(
                 message.name!,
                 style: TextStyle(
-                  color: message.author.id == 'user'
-                      ? Theme.of(context).colorScheme.onPrimary.withOpacity(0.7)
-                      : Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 12,
                 ),
               ),
@@ -238,18 +213,14 @@ class ChatView extends ConsumerWidget {
         children: [
           Icon(
             Icons.attach_file,
-            color: message.author.id == 'user'
-                ? Theme.of(context).colorScheme.onPrimary
-                : Theme.of(context).colorScheme.onSurfaceVariant,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
           const SizedBox(width: 8),
           Flexible(
             child: Text(
               message.name,
               style: TextStyle(
-                color: message.author.id == 'user'
-                    ? Theme.of(context).colorScheme.onPrimary
-                    : Theme.of(context).colorScheme.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
           ),

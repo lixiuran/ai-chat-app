@@ -27,6 +27,8 @@ mixin _$AIModel {
   double get temperature => throw _privateConstructorUsedError;
   double get topP => throw _privateConstructorUsedError;
   int get topK => throw _privateConstructorUsedError;
+  bool get enableSearch => throw _privateConstructorUsedError; // 是否启用联网搜索
+  bool get enableDeepThinking => throw _privateConstructorUsedError;
 
   /// Serializes this AIModel to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -49,7 +51,9 @@ abstract class $AIModelCopyWith<$Res> {
       int maxTokens,
       double temperature,
       double topP,
-      int topK});
+      int topK,
+      bool enableSearch,
+      bool enableDeepThinking});
 }
 
 /// @nodoc
@@ -74,6 +78,8 @@ class _$AIModelCopyWithImpl<$Res, $Val extends AIModel>
     Object? temperature = null,
     Object? topP = null,
     Object? topK = null,
+    Object? enableSearch = null,
+    Object? enableDeepThinking = null,
   }) {
     return _then(_value.copyWith(
       id: null == id
@@ -104,6 +110,14 @@ class _$AIModelCopyWithImpl<$Res, $Val extends AIModel>
           ? _value.topK
           : topK // ignore: cast_nullable_to_non_nullable
               as int,
+      enableSearch: null == enableSearch
+          ? _value.enableSearch
+          : enableSearch // ignore: cast_nullable_to_non_nullable
+              as bool,
+      enableDeepThinking: null == enableDeepThinking
+          ? _value.enableDeepThinking
+          : enableDeepThinking // ignore: cast_nullable_to_non_nullable
+              as bool,
     ) as $Val);
   }
 }
@@ -122,7 +136,9 @@ abstract class _$$AIModelImplCopyWith<$Res> implements $AIModelCopyWith<$Res> {
       int maxTokens,
       double temperature,
       double topP,
-      int topK});
+      int topK,
+      bool enableSearch,
+      bool enableDeepThinking});
 }
 
 /// @nodoc
@@ -145,6 +161,8 @@ class __$$AIModelImplCopyWithImpl<$Res>
     Object? temperature = null,
     Object? topP = null,
     Object? topK = null,
+    Object? enableSearch = null,
+    Object? enableDeepThinking = null,
   }) {
     return _then(_$AIModelImpl(
       id: null == id
@@ -175,6 +193,14 @@ class __$$AIModelImplCopyWithImpl<$Res>
           ? _value.topK
           : topK // ignore: cast_nullable_to_non_nullable
               as int,
+      enableSearch: null == enableSearch
+          ? _value.enableSearch
+          : enableSearch // ignore: cast_nullable_to_non_nullable
+              as bool,
+      enableDeepThinking: null == enableDeepThinking
+          ? _value.enableDeepThinking
+          : enableDeepThinking // ignore: cast_nullable_to_non_nullable
+              as bool,
     ));
   }
 }
@@ -189,7 +215,9 @@ class _$AIModelImpl implements _AIModel {
       this.maxTokens = 0,
       this.temperature = 0.7,
       this.topP = 1.0,
-      this.topK = 0});
+      this.topK = 0,
+      this.enableSearch = false,
+      this.enableDeepThinking = false});
 
   factory _$AIModelImpl.fromJson(Map<String, dynamic> json) =>
       _$$AIModelImplFromJson(json);
@@ -212,10 +240,17 @@ class _$AIModelImpl implements _AIModel {
   @override
   @JsonKey()
   final int topK;
+  @override
+  @JsonKey()
+  final bool enableSearch;
+// 是否启用联网搜索
+  @override
+  @JsonKey()
+  final bool enableDeepThinking;
 
   @override
   String toString() {
-    return 'AIModel(id: $id, name: $name, provider: $provider, maxTokens: $maxTokens, temperature: $temperature, topP: $topP, topK: $topK)';
+    return 'AIModel(id: $id, name: $name, provider: $provider, maxTokens: $maxTokens, temperature: $temperature, topP: $topP, topK: $topK, enableSearch: $enableSearch, enableDeepThinking: $enableDeepThinking)';
   }
 
   @override
@@ -232,13 +267,17 @@ class _$AIModelImpl implements _AIModel {
             (identical(other.temperature, temperature) ||
                 other.temperature == temperature) &&
             (identical(other.topP, topP) || other.topP == topP) &&
-            (identical(other.topK, topK) || other.topK == topK));
+            (identical(other.topK, topK) || other.topK == topK) &&
+            (identical(other.enableSearch, enableSearch) ||
+                other.enableSearch == enableSearch) &&
+            (identical(other.enableDeepThinking, enableDeepThinking) ||
+                other.enableDeepThinking == enableDeepThinking));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(
-      runtimeType, id, name, provider, maxTokens, temperature, topP, topK);
+  int get hashCode => Object.hash(runtimeType, id, name, provider, maxTokens,
+      temperature, topP, topK, enableSearch, enableDeepThinking);
 
   /// Create a copy of AIModel
   /// with the given fields replaced by the non-null parameter values.
@@ -264,7 +303,9 @@ abstract class _AIModel implements AIModel {
       final int maxTokens,
       final double temperature,
       final double topP,
-      final int topK}) = _$AIModelImpl;
+      final int topK,
+      final bool enableSearch,
+      final bool enableDeepThinking}) = _$AIModelImpl;
 
   factory _AIModel.fromJson(Map<String, dynamic> json) = _$AIModelImpl.fromJson;
 
@@ -282,6 +323,10 @@ abstract class _AIModel implements AIModel {
   double get topP;
   @override
   int get topK;
+  @override
+  bool get enableSearch; // 是否启用联网搜索
+  @override
+  bool get enableDeepThinking;
 
   /// Create a copy of AIModel
   /// with the given fields replaced by the non-null parameter values.

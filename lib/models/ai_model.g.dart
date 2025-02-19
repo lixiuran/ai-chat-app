@@ -15,6 +15,8 @@ _$AIModelImpl _$$AIModelImplFromJson(Map<String, dynamic> json) =>
       temperature: (json['temperature'] as num?)?.toDouble() ?? 0.7,
       topP: (json['topP'] as num?)?.toDouble() ?? 1.0,
       topK: (json['topK'] as num?)?.toInt() ?? 0,
+      enableSearch: json['enableSearch'] as bool? ?? false,
+      enableDeepThinking: json['enableDeepThinking'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$$AIModelImplToJson(_$AIModelImpl instance) =>
@@ -26,4 +28,6 @@ Map<String, dynamic> _$$AIModelImplToJson(_$AIModelImpl instance) =>
       'temperature': instance.temperature,
       'topP': instance.topP,
       'topK': instance.topK,
+      'enableSearch': instance.enableSearch,
+      'enableDeepThinking': instance.enableDeepThinking,
     };

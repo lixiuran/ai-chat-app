@@ -217,7 +217,58 @@ class ChatService {
       
       // 检查消息是否包含图片提示
       if (message.contains('我发送了一张图片')) {
-        return "抱歉，DeepSeek Chat 模型目前不支持直接的图片分析功能。您可以尝试描述图片内容，我会基于您的描述进行回答。";
+        return "抱歉，DeepSeek 模型目前不支持直接的图片分析功能。您可以尝试描述图片内容，我会基于您的描述进行回答。";
+      }
+
+      // 构建请求数据
+      final data = {
+        'model': model.id,
+        'messages': [
+          {'role': 'system', 'content': '你是一个有帮助的AI助手。'},
+          {'role': 'user', 'content': message}
+        ],
+        'temperature': model.temperature,
+        'max_tokens': model.maxTokens,
+        'top_p': model.topP,
+      };
+
+      // 如果是 R1 模型，添加特殊功能配置
+      if (model.id == 'deepseek-r1') {
+        data['functions'] = [
+          if (model.enableSearch)
+            {
+              'name': 'search',
+              'description': '搜索互联网获取信息',
+              'parameters': {
+                'type': 'object',
+                'properties': {
+                  'query': {
+                    'type': 'string',
+                    'description': '搜索查询词',
+                  }
+                },
+                'required': ['query']
+              }
+            },
+          if (model.enableDeepThinking)
+            {
+              'name': 'think',
+              'description': '进行深度思考和分析',
+              'parameters': {
+                'type': 'object',
+                'properties': {
+                  'thought': {
+                    'type': 'string',
+                    'description': '思考过程'
+                  }
+                },
+                'required': ['thought']
+              }
+            }
+        ];
+        
+        // 添加工具调用设置
+        data['function_call'] = 'auto';
       }
 
       final response = await _dio.post(
@@ -227,19 +278,18 @@ class ChatService {
             'Authorization': 'Bearer $apiKey',
             'Content-Type': 'application/json',
           },
+          validateStatus: (status) => true, // 允许任何状态码
         ),
-        data: {
-          'model': 'deepseek-chat',
-          'messages': [
-            {'role': 'user', 'content': message}
-          ],
-          'temperature': model.temperature,
-          'max_tokens': model.maxTokens,
-          'top_p': model.topP,
-        },
+        data: data,
       );
       
       developer.log('DeepSeek API Response: ${response.data}');
+      
+      // 检查响应状态
+      if (response.statusCode != 200) {
+        return "API 调用失败：${response.statusCode} - ${response.data['error']?.toString() ?? '未知错误'}";
+      }
+      
       return response.data['choices'][0]['message']['content'];
     } catch (e, stackTrace) {
       developer.log('Error in _callDeepSeek:', error: e, stackTrace: stackTrace);
@@ -253,8 +303,60 @@ class ChatService {
       
       // 检查消息是否包含图片提示
       if (message.contains('我发送了一张图片')) {
-        yield "抱歉，DeepSeek Chat 模型目前不支持直接的图片分析功能。您可以尝试描述图片内容，我会基于您的描述进行回答。";
+        yield "抱歉，DeepSeek 模型目前不支持直接的图片分析功能。您可以尝试描述图片内容，我会基于您的描述进行回答。";
         return;
+      }
+
+      // 构建请求数据
+      final data = {
+        'model': model.id,
+        'messages': [
+          {'role': 'system', 'content': '你是一个有帮助的AI助手。'},
+          {'role': 'user', 'content': message}
+        ],
+        'temperature': model.temperature,
+        'max_tokens': model.maxTokens,
+        'top_p': model.topP,
+        'stream': true,
+      };
+
+      // 如果是 R1 模型，添加特殊功能配置
+      if (model.id == 'deepseek-r1') {
+        data['functions'] = [
+          if (model.enableSearch)
+            {
+              'name': 'search',
+              'description': '搜索互联网获取信息',
+              'parameters': {
+                'type': 'object',
+                'properties': {
+                  'query': {
+                    'type': 'string',
+                    'description': '搜索查询词',
+                  }
+                },
+                'required': ['query']
+              }
+            },
+          if (model.enableDeepThinking)
+            {
+              'name': 'think',
+              'description': '进行深度思考和分析',
+              'parameters': {
+                'type': 'object',
+                'properties': {
+                  'thought': {
+                    'type': 'string',
+                    'description': '思考过程'
+                  }
+                },
+                'required': ['thought']
+              }
+            }
+        ];
+        
+        // 添加工具调用设置
+        data['function_call'] = 'auto';
       }
 
       final response = await _dio.post(
@@ -265,18 +367,16 @@ class ChatService {
             'Content-Type': 'application/json',
           },
           responseType: ResponseType.stream,
+          validateStatus: (status) => true, // 允许任何状态码
         ),
-        data: {
-          'model': 'deepseek-chat',
-          'messages': [
-            {'role': 'user', 'content': message}
-          ],
-          'temperature': model.temperature,
-          'max_tokens': model.maxTokens,
-          'top_p': model.topP,
-          'stream': true,
-        },
+        data: data,
       );
+
+      // 检查响应状态
+      if (response.statusCode != 200) {
+        yield "API 调用失败：${response.statusCode}";
+        return;
+      }
 
       await for (final chunk in response.data.stream) {
         final lines = utf8.decode(chunk).split('\n');

@@ -13,6 +13,8 @@ class AIModel with _$AIModel {
     @Default(0.7) double temperature,
     @Default(1.0) double topP,
     @Default(0) int topK,
+    @Default(false) bool enableSearch,  // 是否启用联网搜索
+    @Default(false) bool enableDeepThinking,  // 是否启用深度思考
   }) = _AIModel;
 
   factory AIModel.fromJson(Map<String, dynamic> json) => _$AIModelFromJson(json);
@@ -25,6 +27,14 @@ final defaultModels = [
     name: 'DeepSeek Chat',
     provider: 'DeepSeek',
     maxTokens: 8192,
+  ),
+  const AIModel(
+    id: 'deepseek-r1',
+    name: 'DeepSeek R1',
+    provider: 'DeepSeek',
+    maxTokens: 16384,
+    enableSearch: true,
+    enableDeepThinking: true,
   ),
   const AIModel(
     id: 'deepseek-coder',

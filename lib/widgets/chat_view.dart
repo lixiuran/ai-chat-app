@@ -26,60 +26,10 @@ class ChatView extends ConsumerWidget {
     final selectedModel = ref.watch(selectedModelProvider);
     final isLoading = ref.watch(isLoadingProvider);
     final messages = currentConversation.messagesList.reversed.toList();
+    final textController = TextEditingController();
 
     return Column(
       children: [
-        // 输入区域
-        Container(
-          padding: const EdgeInsets.all(8.0),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.attach_file),
-                onPressed: () => _showAttachmentOptions(context, ref, currentConversation),
-              ),
-              Expanded(
-                child: TextField(
-                  decoration: const InputDecoration(
-                    hintText: '输入消息...',
-                    border: InputBorder.none,
-                  ),
-                  maxLines: null,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (text) {
-                    if (text.trim().isNotEmpty) {
-                      _sendMessage(text, ref, context, currentConversation, selectedModel);
-                    }
-                  },
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.send),
-                onPressed: () {
-                  final textField = context.findRenderObject() as RenderBox?;
-                  if (textField != null) {
-                    final text = (textField as dynamic).child?.child?.controller?.text ?? '';
-                    if (text.trim().isNotEmpty) {
-                      _sendMessage(text, ref, context, currentConversation, selectedModel);
-                      (textField as dynamic).child?.child?.controller?.clear();
-                    }
-                  }
-                },
-              ),
-            ],
-          ),
-        ),
-        
         // 消息列表
         Expanded(
           child: Stack(
@@ -93,24 +43,48 @@ class ChatView extends ConsumerWidget {
                   final isUser = message.author.id == 'user';
                   
                   return Padding(
-                    padding: const EdgeInsets.only(bottom: 8.0),
+                    padding: const EdgeInsets.only(bottom: 16.0),
                     child: Row(
                       mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (!isUser) const SizedBox(width: 8),
+                        if (!isUser) ...[
+                          CircleAvatar(
+                            backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                            child: Icon(
+                              Icons.smart_toy_outlined,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
                         Flexible(
                           child: Container(
-                            padding: const EdgeInsets.all(12),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                             decoration: BoxDecoration(
                               color: isUser
                                   ? Theme.of(context).colorScheme.primary
-                                  : Theme.of(context).colorScheme.secondary.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
+                                  : Theme.of(context).colorScheme.surfaceVariant,
+                              borderRadius: BorderRadius.only(
+                                topLeft: const Radius.circular(20),
+                                topRight: const Radius.circular(20),
+                                bottomLeft: Radius.circular(isUser ? 20 : 4),
+                                bottomRight: Radius.circular(isUser ? 4 : 20),
+                              ),
                             ),
                             child: _buildMessageContent(message, context),
                           ),
                         ),
-                        if (isUser) const SizedBox(width: 8),
+                        if (isUser) ...[
+                          const SizedBox(width: 8),
+                          CircleAvatar(
+                            backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                            child: Icon(
+                              Icons.person_outline,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   );
@@ -144,29 +118,103 @@ class ChatView extends ConsumerWidget {
             ],
           ),
         ),
+        
+        // 输入区域
+        Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                offset: const Offset(0, -1),
+                blurRadius: 4,
+              ),
+            ],
+          ),
+          child: SafeArea(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.attach_file),
+                    onPressed: () => _showAttachmentOptions(context, ref, currentConversation),
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  Expanded(
+                    child: Container(
+                      constraints: const BoxConstraints(maxHeight: 120),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: TextField(
+                        controller: textController,
+                        decoration: InputDecoration(
+                          hintText: '输入消息...',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(24),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                        ),
+                        maxLines: null,
+                        textInputAction: TextInputAction.newline,
+                        onSubmitted: (text) {
+                          if (text.trim().isNotEmpty) {
+                            _sendMessage(text, ref, context, currentConversation, selectedModel);
+                            textController.clear();
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.send),
+                    onPressed: () {
+                      final text = textController.text;
+                      if (text.trim().isNotEmpty) {
+                        _sendMessage(text, ref, context, currentConversation, selectedModel);
+                        textController.clear();
+                      }
+                    },
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
 
   Widget _buildMessageContent(types.Message message, BuildContext context) {
     if (message is types.TextMessage) {
-      return Text(
+      return SelectableText(
         message.text,
         style: TextStyle(
           color: message.author.id == 'user'
               ? Theme.of(context).colorScheme.onPrimary
-              : Theme.of(context).colorScheme.onBackground,
+              : Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       );
     } else if (message is types.ImageMessage) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Image.file(
-            File(message.uri),
-            width: 200,
-            height: 200,
-            fit: BoxFit.cover,
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.file(
+              File(message.uri),
+              width: 200,
+              height: 200,
+              fit: BoxFit.cover,
+            ),
           ),
           if (message.name != null)
             Padding(
@@ -175,8 +223,8 @@ class ChatView extends ConsumerWidget {
                 message.name!,
                 style: TextStyle(
                   color: message.author.id == 'user'
-                      ? Theme.of(context).colorScheme.onPrimary
-                      : Theme.of(context).colorScheme.onBackground,
+                      ? Theme.of(context).colorScheme.onPrimary.withOpacity(0.7)
+                      : Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
                   fontSize: 12,
                 ),
               ),
@@ -187,14 +235,21 @@ class ChatView extends ConsumerWidget {
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.attach_file),
+          Icon(
+            Icons.attach_file,
+            color: message.author.id == 'user'
+                ? Theme.of(context).colorScheme.onPrimary
+                : Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
           const SizedBox(width: 8),
-          Text(
-            message.name,
-            style: TextStyle(
-              color: message.author.id == 'user'
-                  ? Theme.of(context).colorScheme.onPrimary
-                  : Theme.of(context).colorScheme.onBackground,
+          Flexible(
+            child: Text(
+              message.name,
+              style: TextStyle(
+                color: message.author.id == 'user'
+                    ? Theme.of(context).colorScheme.onPrimary
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
         ],

@@ -47,6 +47,42 @@ class ConversationDrawer extends ConsumerWidget {
                               ),
                         ),
                       ),
+                      // 添加清空按钮
+                      if (conversations.isNotEmpty)
+                        IconButton(
+                          icon: const Icon(Icons.delete_sweep_outlined),
+                          tooltip: '清空所有会话',
+                          onPressed: () async {
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('清空所有会话'),
+                                content: const Text('确定要清空所有会话吗？此操作不可恢复。'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context, false),
+                                    child: const Text('取消'),
+                                  ),
+                                  TextButton(
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: Theme.of(context).colorScheme.error,
+                                    ),
+                                    onPressed: () => Navigator.pop(context, true),
+                                    child: const Text('清空'),
+                                  ),
+                                ],
+                              ),
+                            ) ?? false;
+
+                            if (confirmed && context.mounted) {
+                              // 清空所有会话
+                              await ref.read(conversationsProvider.notifier).clearConversations();
+                              // 清空当前会话选择
+                              await ref.read(currentConversationProvider.notifier).setCurrentConversation(null);
+                            }
+                          },
+                          color: Theme.of(context).colorScheme.error,
+                        ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -98,105 +134,119 @@ class ConversationDrawer extends ConsumerWidget {
                       ],
                     ),
                   )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: conversations.length,
-                    itemBuilder: (context, index) {
-                      final conversation = conversations[index];
-                      final isSelected = conversation.id == currentConversationId;
-                      final lastMessage = conversation.messagesList.isNotEmpty
-                          ? conversation.messagesList.last
-                          : null;
-                      
-                      return Dismissible(
-                        key: Key(conversation.id),
-                        direction: DismissDirection.endToStart,
-                        background: Container(
-                          color: Theme.of(context).colorScheme.error,
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 16),
-                          child: Icon(
-                            Icons.delete_outline,
-                            color: Theme.of(context).colorScheme.onError,
-                          ),
-                        ),
-                        confirmDismiss: (direction) async {
-                          return await showDialog<bool>(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: const Text('删除对话'),
-                              content: const Text('确定要删除这个对话吗？'),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context, false),
-                                  child: const Text('取消'),
-                                ),
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context, true),
-                                  child: const Text('删除'),
-                                ),
-                              ],
-                            ),
-                          ) ?? false;
-                        },
-                        onDismissed: (direction) {
-                          ref
-                              .read(conversationsProvider.notifier)
-                              .deleteConversation(conversation.id);
-                          if (conversation.id == currentConversationId) {
-                            ref
-                                .read(currentConversationProvider.notifier)
-                                .setCurrentConversation(null);
+                : SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: conversations.length,
+                      itemBuilder: (context, index) {
+                        final conversation = conversations[index];
+                        final isSelected = conversation.id == currentConversationId;
+                        
+                        // 获取最后一条消息
+                        String? lastMessageText;
+                        if (conversation.messagesList.isNotEmpty) {
+                          final lastMessage = conversation.messagesList.last;
+                          if (lastMessage is types.TextMessage) {
+                            // 截取前50个字符，如果超过则添加省略号
+                            lastMessageText = lastMessage.text.length > 50
+                                ? '${lastMessage.text.substring(0, 50)}...'
+                                : lastMessage.text;
+                          } else if (lastMessage is types.ImageMessage) {
+                            lastMessageText = '[图片]';
+                          } else if (lastMessage is types.FileMessage) {
+                            lastMessageText = '[文件]';
                           }
-                        },
-                        child: ListTile(
-                          selected: isSelected,
-                          selectedTileColor: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
-                          leading: CircleAvatar(
-                            backgroundColor: isSelected
-                                ? Theme.of(context).colorScheme.primary
-                                : Theme.of(context).colorScheme.surfaceVariant,
+                        }
+                        
+                        return Dismissible(
+                          key: Key(conversation.id),
+                          direction: DismissDirection.endToStart,
+                          background: Container(
+                            color: Theme.of(context).colorScheme.error,
+                            alignment: Alignment.centerRight,
+                            padding: const EdgeInsets.only(right: 16),
                             child: Icon(
-                              Icons.chat_bubble_outline,
-                              color: isSelected
-                                  ? Theme.of(context).colorScheme.onPrimary
-                                  : Theme.of(context).colorScheme.primary,
-                              size: 20,
+                              Icons.delete_outline,
+                              color: Theme.of(context).colorScheme.onError,
                             ),
                           ),
-                          title: Text(
-                            conversation.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: lastMessage != null
-                              ? Text(
-                                  lastMessage is types.TextMessage
-                                      ? lastMessage.text
-                                      : lastMessage is types.ImageMessage
-                                          ? '[图片]'
-                                          : '[文件]',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                      ),
-                                )
-                              : Text(
-                                  DateFormat('yyyy-MM-dd HH:mm').format(conversation.createdAt),
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                      ),
-                                ),
-                          onTap: () {
-                            ref
-                                .read(currentConversationProvider.notifier)
-                                .setCurrentConversation(conversation.id);
-                            Navigator.pop(context);
+                          confirmDismiss: (direction) async {
+                            return await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('删除对话'),
+                                content: const Text('确定要删除这个对话吗？'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context, false),
+                                    child: const Text('取消'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context, true),
+                                    child: const Text('删除'),
+                                  ),
+                                ],
+                              ),
+                            ) ?? false;
                           },
-                        ),
-                      );
-                    },
+                          onDismissed: (direction) {
+                            ref
+                                .read(conversationsProvider.notifier)
+                                .deleteConversation(conversation.id);
+                            if (conversation.id == currentConversationId) {
+                              ref
+                                  .read(currentConversationProvider.notifier)
+                                  .setCurrentConversation(null);
+                            }
+                          },
+                          child: ListTile(
+                            selected: isSelected,
+                            selectedTileColor: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
+                            leading: CircleAvatar(
+                              backgroundColor: isSelected
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Theme.of(context).colorScheme.surfaceVariant,
+                              child: Icon(
+                                Icons.chat_bubble_outline,
+                                color: isSelected
+                                    ? Theme.of(context).colorScheme.onPrimary
+                                    : Theme.of(context).colorScheme.primary,
+                                size: 20,
+                              ),
+                            ),
+                            title: Text(
+                              conversation.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: lastMessageText != null
+                                ? Text(
+                                    lastMessageText,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                        ),
+                                  )
+                                : Text(
+                                    DateFormat('yyyy-MM-dd HH:mm').format(conversation.createdAt),
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                        ),
+                                  ),
+                            onTap: () {
+                              ref
+                                  .read(currentConversationProvider.notifier)
+                                  .setCurrentConversation(conversation.id);
+                              Navigator.pop(context);
+                            },
+                          ),
+                        );
+                      },
+                    ),
                   ),
           ),
 

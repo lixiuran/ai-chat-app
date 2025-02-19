@@ -59,6 +59,12 @@ class ConversationsNotifier extends StateNotifier<List<Conversation>> {
     await _saveConversations();
   }
 
+  /// 清空所有会话
+  Future<void> clearConversations() async {
+    state = [];
+    await _saveConversations();
+  }
+
   Conversation? getConversation(String id) {
     return state.firstWhere((conv) => conv.id == id);
   }

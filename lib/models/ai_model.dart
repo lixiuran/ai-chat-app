@@ -21,6 +21,18 @@ class AIModel with _$AIModel {
 // 预定义的模型列表
 final defaultModels = [
   const AIModel(
+    id: 'deepseek-chat',
+    name: 'DeepSeek Chat',
+    provider: 'DeepSeek',
+    maxTokens: 8192,
+  ),
+  const AIModel(
+    id: 'deepseek-coder',
+    name: 'DeepSeek Coder',
+    provider: 'DeepSeek',
+    maxTokens: 8192,
+  ),
+  const AIModel(
     id: 'gpt-4',
     name: 'GPT-4',
     provider: 'OpenAI',
@@ -43,17 +55,5 @@ final defaultModels = [
     name: 'Claude 3 Sonnet',
     provider: 'Anthropic',
     maxTokens: 200000,
-  ),
-  const AIModel(
-    id: 'deepseek-coder',
-    name: 'DeepSeek Coder',
-    provider: 'DeepSeek',
-    maxTokens: 8192,
-  ),
-  const AIModel(
-    id: 'deepseek-chat',
-    name: 'DeepSeek Chat',
-    provider: 'DeepSeek',
-    maxTokens: 8192,
   ),
 ]; 

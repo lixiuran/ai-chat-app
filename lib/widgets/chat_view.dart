@@ -15,60 +15,90 @@ import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:ai_app/widgets/markdown_text.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+/// 聊天界面组件
+/// 实现了消息列表显示、消息发送、文件上传等功能
 class ChatView extends ConsumerWidget {
   const ChatView({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // 获取当前会话ID和会话列表
     final currentConversationId = ref.watch(currentConversationProvider);
     final conversations = ref.watch(conversationsProvider);
     final currentConversation = conversations.firstWhere(
       (conv) => conv.id == currentConversationId,
     );
+    
+    // 获取选中的AI模型和加载状态
     final selectedModel = ref.watch(selectedModelProvider);
     final isLoading = ref.watch(isLoadingProvider);
+    
+    // 获取消息列表并反转顺序（最新的消息在底部）
     final messages = currentConversation.messagesList.reversed.toList();
+    
+    // 创建文本输入控制器和滚动控制器
     final textController = TextEditingController();
     final scrollController = ScrollController();
 
     return Column(
       children: [
-        // 消息列表
+        // 消息列表区域
         Expanded(
           child: Stack(
             children: [
               ListView.builder(
                 controller: scrollController,
-                reverse: true,
-                padding: const EdgeInsets.all(16),
+                reverse: true,  // 反向列表，新消息在底部
+                padding: const EdgeInsets.all(8),
                 itemCount: messages.length,
                 itemBuilder: (context, index) {
                   final message = messages[index];
                   final isUser = message.author.id == 'user';
                   
+                  // 构建单个消息项
                   return Padding(
-                    padding: const EdgeInsets.only(bottom: 16.0),
+                    padding: const EdgeInsets.only(bottom: 8.0),
                     child: Center(
                       child: Container(
-                        width: MediaQuery.of(context).size.width * 0.9,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
+                        width: MediaQuery.of(context).size.width * 1,
+                        child: Row(
+                          // 用户消息靠右，机器人消息居中
+                          mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.center,
+                          children: [
+                            Flexible(
+                              child: Container(
+                                constraints: BoxConstraints(
+                                  // 用户消息宽度70%，机器人消息宽度100%
+                                  maxWidth: isUser 
+                                      ? MediaQuery.of(context).size.width * 0.7
+                                      : MediaQuery.of(context).size.width * 1,
+                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                                decoration: BoxDecoration(
+                                  // 用户消息使用绿色背景，机器人消息使用白色背景
+                                  color: isUser
+                                      ? const Color(0xFF2AAF62)
+                                      : Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 4,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: _buildMessageContent(message, context),
+                              ),
                             ),
                           ],
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        child: _buildMessageContent(message, context),
                       ),
                     ),
                   );
                 },
               ),
+              // 加载状态指示器
               if (isLoading)
                 Positioned.fill(
                   child: Container(
@@ -98,7 +128,7 @@ class ChatView extends ConsumerWidget {
           ),
         ),
         
-        // 输入区域
+        // 底部输入区域
         Container(
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
@@ -116,11 +146,13 @@ class ChatView extends ConsumerWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
+                  // 附件按钮
                   IconButton(
                     icon: const Icon(Icons.attach_file),
                     onPressed: () => _showAttachmentOptions(context, ref, currentConversation),
                     color: Theme.of(context).colorScheme.primary,
                   ),
+                  // 文本输入框
                   Expanded(
                     child: Container(
                       constraints: const BoxConstraints(maxHeight: 120),
@@ -152,6 +184,7 @@ class ChatView extends ConsumerWidget {
                       ),
                     ),
                   ),
+                  // 发送按钮
                   IconButton(
                     icon: const Icon(Icons.send),
                     onPressed: () {
@@ -172,16 +205,20 @@ class ChatView extends ConsumerWidget {
     );
   }
 
+  /// 构建消息内容
+  /// 支持文本消息、图片消息和文件消息
   Widget _buildMessageContent(types.Message message, BuildContext context) {
     if (message is types.TextMessage) {
+      // 文本消息使用 MarkdownText 组件渲染
       return MarkdownText(
         text: message.text,
         textColor: message.author.id == 'user'
-            ? Theme.of(context).colorScheme.primary
+            ? Colors.white
             : Theme.of(context).colorScheme.onSurface,
         maxWidth: MediaQuery.of(context).size.width * 0.9,
       );
     } else if (message is types.ImageMessage) {
+      // 图片消息显示图片预览和文件名
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -200,7 +237,9 @@ class ChatView extends ConsumerWidget {
               child: Text(
                 message.name!,
                 style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  color: message.author.id == 'user'
+                      ? Colors.white.withOpacity(0.7)
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 12,
                 ),
               ),
@@ -208,19 +247,24 @@ class ChatView extends ConsumerWidget {
         ],
       );
     } else if (message is types.FileMessage) {
+      // 文件消息显示文件图标和文件名
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
             Icons.attach_file,
-            color: Theme.of(context).colorScheme.onSurface,
+            color: message.author.id == 'user'
+                ? Colors.white
+                : Theme.of(context).colorScheme.onSurface,
           ),
           const SizedBox(width: 8),
           Flexible(
             child: Text(
               message.name,
               style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurface,
+                color: message.author.id == 'user'
+                    ? Colors.white
+                    : Theme.of(context).colorScheme.onSurface,
               ),
             ),
           ),
@@ -230,6 +274,8 @@ class ChatView extends ConsumerWidget {
     return const SizedBox();
   }
 
+  /// 显示附件选项菜单
+  /// 支持选择图片和文件
   Future<void> _showAttachmentOptions(
     BuildContext context,
     WidgetRef ref,
@@ -270,6 +316,8 @@ class ChatView extends ConsumerWidget {
     }
   }
 
+  /// 发送消息
+  /// 支持流式输出，实时显示AI响应
   Future<void> _sendMessage(
     String text,
     WidgetRef ref,
@@ -277,6 +325,7 @@ class ChatView extends ConsumerWidget {
     Conversation currentConversation,
     AIModel selectedModel,
   ) async {
+    // 创建用户消息
     final textMessage = types.TextMessage(
       author: const types.User(id: 'user'),
       id: const Uuid().v4(),
@@ -289,11 +338,12 @@ class ChatView extends ConsumerWidget {
       _messageToJson(textMessage),
     ];
     
+    // 更新会话消息
     ref.read(conversationsProvider.notifier).updateConversation(
           currentConversation.copyWith(messages: updatedMessages),
         );
 
-    // 创建一个空的机器人消息用于流式更新
+    // 创建空的机器人消息用于流式更新
     final botMessage = types.TextMessage(
       author: const types.User(id: 'bot'),
       id: const Uuid().v4(),
@@ -310,15 +360,18 @@ class ChatView extends ConsumerWidget {
           currentConversation.copyWith(messages: messagesWithBot),
         );
 
+    // 开始加载状态
     ref.read(isLoadingProvider.notifier).state = true;
     try {
       String fullResponse = '';
       bool hasStartedReceiving = false;
+      // 获取AI响应流
       final responseStream = ref.read(chatServiceProvider).sendMessageStream(
             text,
             selectedModel,
           );
 
+      // 处理流式响应
       await for (final chunk in responseStream) {
         if (!hasStartedReceiving) {
           hasStartedReceiving = true;
@@ -338,6 +391,7 @@ class ChatView extends ConsumerWidget {
           _messageToJson(updatedBotMessage),
         ];
         
+        // 更新消息显示
         ref.read(conversationsProvider.notifier).updateConversation(
               currentConversation.copyWith(messages: newMessages),
             );
@@ -353,6 +407,7 @@ class ChatView extends ConsumerWidget {
     }
   }
 
+  /// 处理图片选择
   Future<void> _handleImageSelection(
     BuildContext context,
     WidgetRef ref,
@@ -388,6 +443,7 @@ class ChatView extends ConsumerWidget {
     }
   }
 
+  /// 处理文件选择
   Future<void> _handleFileSelection(
     BuildContext context,
     WidgetRef ref,
@@ -422,6 +478,7 @@ class ChatView extends ConsumerWidget {
     }
   }
 
+  /// 保存文件到本地
   Future<File> _saveFile(List<int> bytes, String name) async {
     final directory = await getApplicationDocumentsDirectory();
     final file = File('${directory.path}/$name');
@@ -429,6 +486,7 @@ class ChatView extends ConsumerWidget {
     return file;
   }
 
+  /// 将消息对象转换为JSON格式
   Map<String, dynamic> _messageToJson(types.Message message) {
     if (message is types.TextMessage) {
       return {

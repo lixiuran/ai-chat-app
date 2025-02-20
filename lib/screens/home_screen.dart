@@ -18,6 +18,8 @@ import 'package:ai_app/widgets/model_selector.dart';
 import 'package:ai_app/widgets/conversation_drawer.dart';
 import 'package:ai_app/providers/theme_provider.dart';
 import 'package:intl/intl.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:permission_handler/permission_handler.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -30,14 +32,180 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   final textController = TextEditingController();
   final scrollController = ScrollController();
   final focusNode = FocusNode();
+  bool isVoiceMode = false;
+  late stt.SpeechToText _speech;
+  bool _isListening = false;
+  String _recognizedText = '';
 
   @override
   void initState() {
     super.initState();
+    _speech = stt.SpeechToText();
+    _initSpeechState();
     // 延迟100毫秒后自动弹出键盘
     Future.delayed(const Duration(milliseconds: 100), () {
       focusNode.requestFocus();
     });
+  }
+
+  // 初始化语音识别状态
+  Future<void> _initSpeechState() async {
+    try {
+      var hasSpeech = await _speech.initialize(
+        onError: (error) {
+          print('语音识别错误: ${error.errorMsg}');
+          setState(() => _isListening = false);
+        },
+        onStatus: (status) {
+          print('语音识别状态: $status');
+          if (status == 'done' && _isListening) {
+            _handleVoiceButtonReleased();
+          }
+        },
+        finalTimeout: const Duration(seconds: 5),
+        debugLogging: true,
+      );
+
+      if (hasSpeech) {
+        // 获取可用的语音识别语言
+        var systemLocale = await _speech.systemLocale();
+        var supportedLocales = await _speech.locales();
+        
+        print('系统语言: ${systemLocale?.localeId}');
+        print('支持的语言: ${supportedLocales.map((locale) => locale.localeId).join(', ')}');
+        
+        // 检查是否支持中文
+        var zhLocale = supportedLocales.firstWhere(
+          (locale) => locale.localeId.startsWith('zh'),
+          orElse: () => systemLocale!,
+        );
+        
+        print('选择的语言: ${zhLocale.localeId}');
+      } else {
+        print('语音识别初始化失败');
+      }
+    } catch (e) {
+      print('语音识别初始化错误: $e');
+    }
+  }
+
+  // 处理语音按钮按下
+  Future<void> _handleVoiceButtonPressed() async {
+    final hasMicPermission = await Permission.microphone.request().isGranted;
+    if (!hasMicPermission) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('需要麦克风权限才能使用语音功能')),
+        );
+      }
+      return;
+    }
+
+    if (!_speech.isAvailable) {
+      print('语音识别服务不可用，尝试重新初始化...');
+      await _initSpeechState();
+      if (!_speech.isAvailable) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('语音识别服务不可用')),
+          );
+        }
+        return;
+      }
+    }
+
+    setState(() {
+      _isListening = true;
+      _recognizedText = '';
+    });
+
+    try {
+      await _speech.listen(
+        onResult: (result) {
+          print('识别结果: ${result.recognizedWords}');
+          setState(() {
+            // 只在结果是最终结果时更新文本
+            if (result.finalResult) {
+              _recognizedText = result.recognizedWords;
+              print('最终识别结果: $_recognizedText');
+            }
+          });
+        },
+        localeId: 'zh_CN',
+        listenMode: stt.ListenMode.dictation,  // 使用听写模式
+        partialResults: false,  // 不需要部分结果
+        listenFor: const Duration(seconds: 30),
+        pauseFor: const Duration(seconds: 3),
+      );
+    } catch (e) {
+      print('开始语音识别错误: $e');
+      setState(() => _isListening = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('开始语音识别失败: $e')),
+        );
+      }
+    }
+  }
+
+  // 处理语音按钮释放
+  void _handleVoiceButtonReleased() async {
+    try {
+      if (_isListening) {
+        print('停止语音识别...');
+        await _speech.stop();
+        setState(() {
+          _isListening = false;
+        });
+
+        // 等待一小段时间确保获取到最终结果
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        if (_recognizedText.isNotEmpty) {
+          print('发送识别到的文字: $_recognizedText');
+          final currentConversationId = ref.read(currentConversationProvider);
+          if (currentConversationId != null) {
+            final conversations = ref.read(conversationsProvider);
+            final conversation = conversations.firstWhere(
+              (conv) => conv.id == currentConversationId,
+            );
+            final selectedModel = ref.read(selectedModelProvider);
+            
+            // 将识别到的文本作为消息发送
+            await _sendMessage(_recognizedText, ref, context, conversation, selectedModel);
+            
+            // 清空识别的文本
+            setState(() {
+              _recognizedText = '';
+            });
+          } else {
+            print('没有选中的对话');
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('请先创建或选择一个对话')),
+              );
+            }
+          }
+        } else {
+          print('没有识别到文字');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('没有识别到文字，请重试')),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      print('停止语音识别错误: $e');
+      setState(() {
+        _isListening = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('停止语音识别失败: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -45,7 +213,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     textController.dispose();
     scrollController.dispose();
     focusNode.dispose();
+    _speech.cancel();
     super.dispose();
+  }
+
+  // 切换输入模式
+  void _toggleInputMode() {
+    setState(() {
+      isVoiceMode = !isVoiceMode;
+      if (!isVoiceMode) {
+        // 切换回键盘模式时自动弹出键盘
+        Future.delayed(const Duration(milliseconds: 100), () {
+          focusNode.requestFocus();
+        });
+      } else {
+        // 切换到语音模式时收起键盘
+        FocusScope.of(context).unfocus();
+      }
+    });
   }
 
   @override
@@ -232,12 +417,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.mic_none_outlined),
-                            onPressed: () {
-                              FocusScope.of(context).unfocus();
-                              // TODO: 实现语音输入
-                            },
-                            tooltip: '语音输入',
+                            icon: Icon(
+                              isVoiceMode ? Icons.keyboard : Icons.mic_none_outlined,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                            onPressed: _toggleInputMode,
+                            tooltip: isVoiceMode ? '切换键盘' : '切换语音',
                           ),
                           Expanded(
                             child: Container(
@@ -246,38 +431,67 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
                                 borderRadius: BorderRadius.circular(24),
                               ),
-                              child: TextField(
-                                controller: textController,
-                                focusNode: focusNode,
-                                decoration: InputDecoration(
-                                  hintText: '有问题，尽管问',
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(24),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
-                                  ),
-                                ),
-                                maxLines: null,
-                                textInputAction: TextInputAction.send,
-                                onSubmitted: (text) {
-                                  if (text.trim().isNotEmpty && currentConversationId != null) {
-                                    final conversation = conversations.firstWhere(
-                                      (conv) => conv.id == currentConversationId,
-                                    );
-                                    _sendMessage(text, ref, context, conversation, selectedModel);
-                                    textController.clear();
-                                    focusNode.requestFocus();
-                                  }
-                                },
-                              ),
+                              child: isVoiceMode
+                                  ? GestureDetector(
+                                      onLongPress: _handleVoiceButtonPressed,
+                                      onLongPressEnd: (_) => _handleVoiceButtonReleased(),
+                                      child: Container(
+                                        height: 50,
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(24),
+                                          border: Border.all(
+                                            color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+                                          ),
+                                          color: _isListening 
+                                            ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+                                            : null,
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            _isListening ? '正在录音...' : '长按说话',
+                                            style: TextStyle(
+                                              color: _isListening 
+                                                ? Theme.of(context).colorScheme.primary
+                                                : Theme.of(context).colorScheme.onSurfaceVariant,
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  : TextField(
+                                      controller: textController,
+                                      focusNode: focusNode,
+                                      decoration: InputDecoration(
+                                        hintText: '有问题，尽管问',
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(24),
+                                          borderSide: BorderSide.none,
+                                        ),
+                                        contentPadding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 12,
+                                        ),
+                                      ),
+                                      maxLines: null,
+                                      textInputAction: TextInputAction.send,
+                                      onSubmitted: (text) {
+                                        if (text.trim().isNotEmpty && currentConversationId != null) {
+                                          final conversation = conversations.firstWhere(
+                                            (conv) => conv.id == currentConversationId,
+                                          );
+                                          _sendMessage(text, ref, context, conversation, selectedModel);
+                                          textController.clear();
+                                          focusNode.requestFocus();
+                                        }
+                                      },
+                                    ),
                             ),
                           ),
                           IconButton(
                             icon: const Icon(Icons.send),
                             onPressed: () {
+                              if (isVoiceMode) return;  // 语音模式下禁用发送按钮
                               final text = textController.text;
                               if (text.trim().isNotEmpty && currentConversationId != null) {
                                 final conversation = conversations.firstWhere(

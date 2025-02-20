@@ -36,6 +36,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
   late stt.SpeechToText _speech;
   bool _isListening = false;
   String _recognizedText = '';
+  bool _showScrollToBottom = false;
   
   // 动画相关变量
   AnimationController? _animationController;
@@ -47,6 +48,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     _speech = stt.SpeechToText();
     _initSpeechState();
     _initAnimationController();
+    
+    scrollController.addListener(() {
+      if (scrollController.position.pixels > 300 && !_showScrollToBottom) {
+        setState(() => _showScrollToBottom = true);
+      } else if (scrollController.position.pixels <= 300 && _showScrollToBottom) {
+        setState(() => _showScrollToBottom = false);
+      }
+    });
+    
+    // 自动创建新对话
+    Future.microtask(() async {
+      final currentConversationId = ref.read(currentConversationProvider);
+      if (currentConversationId == null) {
+        final now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
+        await ref
+            .read(currentConversationProvider.notifier)
+            .createAndSetNewConversation('新对话 $now');
+      }
+    });
     
     // 延迟100毫秒后自动弹出键盘
     Future.delayed(const Duration(milliseconds: 100), () {
@@ -221,7 +241,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
           print('没有识别到文字');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('没有识别到文字，请重试')),
+              SnackBar(
+                content: const Text(
+                  '没有识别到文字，请重试',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                backgroundColor: const Color(0xFF2AAF62),
+                duration: const Duration(seconds: 1),
+                // behavior: SnackBarBehavior.floating,
+              ),
             );
           }
         }
@@ -296,10 +328,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
               },
             ),
           ),
-          title: const Text('AI Chat'),
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              GestureDetector(
+                onTap: () => FocusScope.of(context).unfocus(),
+                child: const ModelSelector(),
+              ),
+            ],
+          ),
+          centerTitle: true,
           actions: [
             IconButton(
-              icon: const Icon(Icons.add),
+              icon: const Icon(Icons.post_add_rounded),
+              tooltip: '新建对话',
               onPressed: () async {
                 FocusScope.of(context).unfocus();
                 final now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
@@ -308,270 +350,324 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                     .createAndSetNewConversation('新对话 $now');
               },
             ),
-            GestureDetector(
-              onTap: () => FocusScope.of(context).unfocus(),
-              child: const ModelSelector(),
-            ),
+            const SizedBox(width: 8),
           ],
         ),
-        body: Column(
+        body: Stack(
           children: [
-            // 消息列表区域
-            Expanded(
-              child: currentConversationId == null
-                  ? Center(
-                      child: Text(
-                        'Hi ~ 我是 AI Chat，快来体验吧',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    )
-                  : Stack(
-                      children: [
-                        ListView.builder(
-                          controller: scrollController,
-                          reverse: true,
-                          padding: const EdgeInsets.all(8),
-                          itemCount: conversations
-                              .firstWhere((conv) => conv.id == currentConversationId)
-                              .messagesList
-                              .reversed
-                              .length,
-                          itemBuilder: (context, index) {
-                            final message = conversations
+            Column(
+              children: [
+                Expanded(
+                  child: currentConversationId == null
+                      ? Center(
+                          child: Text(
+                            'Hi ~ 我是 AI Chat，快来体验吧',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        )
+                      : Stack(
+                          children: [
+                            conversations
                                 .firstWhere((conv) => conv.id == currentConversationId)
                                 .messagesList
-                                .reversed
-                                .toList()[index];
-                            final isUser = message.author.id == 'user';
-                            
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 8.0),
-                              child: Center(
-                                child: Container(
-                                  width: MediaQuery.of(context).size.width * 1,
-                                  child: Row(
-                                    mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.center,
-                                    children: [
-                                      Flexible(
-                                        child: Container(
-                                          constraints: BoxConstraints(
-                                            maxWidth: isUser 
-                                                ? MediaQuery.of(context).size.width * 0.7
-                                                : MediaQuery.of(context).size.width * 1,
-                                          ),
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                                          decoration: BoxDecoration(
-                                            color: isUser
-                                                ? const Color(0xFF2AAF62)
-                                                : Colors.white,
-                                            borderRadius: BorderRadius.circular(12),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Colors.black.withOpacity(0.05),
-                                                blurRadius: 4,
-                                                offset: const Offset(0, 2),
-                                              ),
-                                            ],
-                                          ),
-                                          child: _buildMessageContent(message, context),
-                                        ),
+                                .isEmpty
+                                ? Center(
+                                    child: Text(
+                                      'Hi ~ 我是 AI Chat，快来体验吧',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                                       ),
-                                    ],
+                                    ),
+                                  )
+                                : ListView.builder(
+                                    controller: scrollController,
+                                    reverse: true,
+                                    padding: const EdgeInsets.all(8),
+                                    itemCount: conversations
+                                        .firstWhere((conv) => conv.id == currentConversationId)
+                                        .messagesList
+                                        .reversed
+                                        .length,
+                                    itemBuilder: (context, index) {
+                                      final message = conversations
+                                          .firstWhere((conv) => conv.id == currentConversationId)
+                                          .messagesList
+                                          .reversed
+                                          .toList()[index];
+                                      final isUser = message.author.id == 'user';
+                                      final timestamp = (message.createdAt ?? DateTime.now().millisecondsSinceEpoch ~/ 1000) * 1000;
+                                      final timeString = DateFormat('HH:mm', 'zh_CN').format(
+                                        DateTime.fromMillisecondsSinceEpoch(timestamp)
+                                      );
+                                      
+                                      return Column(
+                                        children: [
+                                          if (index == 0 || index == conversations
+                                              .firstWhere((conv) => conv.id == currentConversationId)
+                                              .messagesList
+                                              .length - 1)
+                                            Padding(
+                                              padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                              child: Text(
+                                                timeString,
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                                ),
+                                              ),
+                                            ),
+                                          Padding(
+                                            padding: const EdgeInsets.only(bottom: 8.0),
+                                            child: Center(
+                                              child: SizedBox(
+                                                width: MediaQuery.of(context).size.width,
+                                                child: Row(
+                                                  mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.center,
+                                                  children: [
+                                                    Flexible(
+                                                      child: Container(
+                                                        constraints: BoxConstraints(
+                                                          maxWidth: isUser 
+                                                              ? MediaQuery.of(context).size.width * 0.7
+                                                              : MediaQuery.of(context).size.width,
+                                                        ),
+                                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                                                        decoration: BoxDecoration(
+                                                          color: isUser
+                                                              ? const Color(0xFF2AAF62)
+                                                              : Colors.white,
+                                                          borderRadius: BorderRadius.circular(12),
+                                                          boxShadow: [
+                                                            BoxShadow(
+                                                              color: Colors.black.withOpacity(0.05),
+                                                              blurRadius: 4,
+                                                              offset: const Offset(0, 2),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                        child: _buildMessageContent(message, context),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                            if (isLoading)
+                              Positioned.fill(
+                                child: Container(
+                                  color: Colors.black.withOpacity(0.3),
+                                  child: Center(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        SpinKitDoubleBounce(
+                                          color: Theme.of(context).colorScheme.primary,
+                                          size: 50.0,
+                                        ),
+                                        const SizedBox(height: 16),
+                                        Text(
+                                          '正在思考...',
+                                          style: TextStyle(
+                                            color: Theme.of(context).colorScheme.onBackground,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
-                            );
-                          },
-                        ),
-                        if (isLoading)
-                          Positioned.fill(
-                            child: Container(
-                              color: Colors.black.withOpacity(0.3),
-                              child: Center(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    SpinKitDoubleBounce(
-                                      color: Theme.of(context).colorScheme.primary,
-                                      size: 50.0,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      '正在思考...',
-                                      style: TextStyle(
-                                        color: Theme.of(context).colorScheme.onBackground,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-            ),
-            
-            // 底部输入区域
-            Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    offset: const Offset(0, -1),
-                    blurRadius: 4,
-                  ),
-                ],
-              ),
-              child: SafeArea(
-                child: Column(
-                  children: [
-                    if (selectedModel.id == 'deepseek-r1')
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        child: Row(
-                          children: [
-                            _buildFeatureButton(
-                              icon: Icons.psychology_outlined,
-                              label: '深度思考(R1)',
-                              isEnabled: selectedModel.enableDeepThinking,
-                            ),
-                            const SizedBox(width: 8),
-                            _buildFeatureButton(
-                              icon: Icons.search_outlined,
-                              label: '联网搜索',
-                              isEnabled: selectedModel.enableSearch,
-                            ),
                           ],
                         ),
+                ),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        offset: const Offset(0, -1),
+                        blurRadius: 4,
                       ),
-                    Container(
-                      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          IconButton(
-                            icon: Icon(
-                              isVoiceMode ? Icons.keyboard : Icons.mic_none_outlined,
-                              color: Theme.of(context).colorScheme.onSurface,
+                    ],
+                  ),
+                  child: SafeArea(
+                    child: Column(
+                      children: [
+                        if (selectedModel.id == 'deepseek-r1')
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            child: Row(
+                              children: [
+                                _buildFeatureButton(
+                                  icon: Icons.psychology_outlined,
+                                  label: '深度思考(R1)',
+                                  isEnabled: selectedModel.enableDeepThinking,
+                                ),
+                                const SizedBox(width: 8),
+                                _buildFeatureButton(
+                                  icon: Icons.search_outlined,
+                                  label: '联网搜索',
+                                  isEnabled: selectedModel.enableSearch,
+                                ),
+                              ],
                             ),
-                            onPressed: _toggleInputMode,
-                            tooltip: isVoiceMode ? '切换键盘' : '切换语音',
                           ),
-                          Expanded(
-                            child: Container(
-                              constraints: const BoxConstraints(maxHeight: 120),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
-                                borderRadius: BorderRadius.circular(24),
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              IconButton(
+                                icon: Icon(
+                                  isVoiceMode ? Icons.keyboard_alt_outlined : Icons.mic_none_outlined,
+                                  color: Theme.of(context).colorScheme.onSurface,
+                                  size: 28,
+                                ),
+                                onPressed: _toggleInputMode,
+                                tooltip: isVoiceMode ? '切换键盘' : '切换语音',
                               ),
-                              child: isVoiceMode
-                                  ? GestureDetector(
-                                      onLongPress: _handleVoiceButtonPressed,
-                                      onLongPressEnd: (_) => _handleVoiceButtonReleased(),
-                                      child: Container(
-                                        height: 50,
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(24),
-                                          border: Border.all(
-                                            color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
-                                          ),
-                                          color: _isListening 
-                                            ? const Color(0xFF2AAF62).withOpacity(0.2)
-                                            : null,
-                                        ),
-                                        child: Stack(
-                                          alignment: Alignment.center,
-                                          children: [
-                                            if (_isListening && _animation != null)
-                                              AnimatedBuilder(
-                                                animation: _animation!,
-                                                builder: (context, child) {
-                                                  return Row(
-                                                    mainAxisAlignment: MainAxisAlignment.center,
-                                                    children: List.generate(3, (index) {
-                                                      return Container(
-                                                        margin: const EdgeInsets.symmetric(horizontal: 2),
-                                                        width: 3,
-                                                        height: 12 + (10 * _animation!.value * ((index + 1) % 2)),
-                                                        decoration: BoxDecoration(
-                                                          color: const Color(0xFF2AAF62),
-                                                          borderRadius: BorderRadius.circular(1.5),
-                                                        ),
-                                                      );
-                                                    }),
-                                                  );
-                                                },
+                              Expanded(
+                                child: Container(
+                                  constraints: const BoxConstraints(maxHeight: 120),
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
+                                    borderRadius: BorderRadius.circular(24),
+                                  ),
+                                  child: isVoiceMode
+                                      ? GestureDetector(
+                                          onLongPress: _handleVoiceButtonPressed,
+                                          onLongPressEnd: (_) => _handleVoiceButtonReleased(),
+                                          child: Container(
+                                            height: 50,
+                                            decoration: BoxDecoration(
+                                              borderRadius: BorderRadius.circular(24),
+                                              border: Border.all(
+                                                color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
                                               ),
-                                            Text(
-                                              _isListening ? '松开发送' : '按住说话',
-                                              style: TextStyle(
-                                                color: _isListening 
-                                                  ? const Color(0xFF2AAF62)
-                                                  : Theme.of(context).colorScheme.onSurfaceVariant,
-                                                fontSize: 16,
-                                              ),
+                                              color: _isListening 
+                                                ? const Color(0xFF2AAF62).withOpacity(0.2)
+                                                : null,
                                             ),
-                                          ],
+                                            child: Stack(
+                                              alignment: Alignment.center,
+                                              children: [
+                                                if (_isListening && _animation != null)
+                                                  AnimatedBuilder(
+                                                    animation: _animation!,
+                                                    builder: (context, child) {
+                                                      return Row(
+                                                        mainAxisAlignment: MainAxisAlignment.center,
+                                                        children: List.generate(3, (index) {
+                                                          return Container(
+                                                            margin: const EdgeInsets.symmetric(horizontal: 2),
+                                                            width: 3,
+                                                            height: 12 + (10 * _animation!.value * ((index + 1) % 2)),
+                                                            decoration: BoxDecoration(
+                                                              color: const Color(0xFF2AAF62),
+                                                              borderRadius: BorderRadius.circular(1.5),
+                                                            ),
+                                                          );
+                                                        }),
+                                                      );
+                                                    },
+                                                  ),
+                                                Text(
+                                                  _isListening ? ' ' : '按住说话',
+                                                  style: TextStyle(
+                                                    color: _isListening 
+                                                      ? const Color(0xFF2AAF62)
+                                                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                                                    fontSize: 16,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        )
+                                      : TextField(
+                                          controller: textController,
+                                          focusNode: focusNode,
+                                          decoration: InputDecoration(
+                                            hintText: '有问题，尽管问',
+                                            border: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(24),
+                                              borderSide: BorderSide.none,
+                                            ),
+                                            contentPadding: const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 12,
+                                            ),
+                                          ),
+                                          maxLines: null,
+                                          textInputAction: TextInputAction.send,
+                                          onSubmitted: (text) {
+                                            if (text.trim().isNotEmpty && currentConversationId != null) {
+                                              final conversation = conversations.firstWhere(
+                                                (conv) => conv.id == currentConversationId,
+                                              );
+                                              _sendMessage(text, ref, context, conversation, selectedModel);
+                                              textController.clear();
+                                              focusNode.requestFocus();
+                                            }
+                                          },
                                         ),
-                                      ),
-                                    )
-                                  : TextField(
-                                      controller: textController,
-                                      focusNode: focusNode,
-                                      decoration: InputDecoration(
-                                        hintText: '有问题，尽管问',
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(24),
-                                          borderSide: BorderSide.none,
-                                        ),
-                                        contentPadding: const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 12,
-                                        ),
-                                      ),
-                                      maxLines: null,
-                                      textInputAction: TextInputAction.send,
-                                      onSubmitted: (text) {
-                                        if (text.trim().isNotEmpty && currentConversationId != null) {
-                                          final conversation = conversations.firstWhere(
-                                            (conv) => conv.id == currentConversationId,
-                                          );
-                                          _sendMessage(text, ref, context, conversation, selectedModel);
-                                          textController.clear();
-                                          focusNode.requestFocus();
-                                        }
-                                      },
-                                    ),
-                            ),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.send),
+                                onPressed: () {
+                                  if (isVoiceMode) return;
+                                  final text = textController.text;
+                                  if (text.trim().isNotEmpty && currentConversationId != null) {
+                                    final conversation = conversations.firstWhere(
+                                      (conv) => conv.id == currentConversationId,
+                                    );
+                                    _sendMessage(text, ref, context, conversation, selectedModel);
+                                    textController.clear();
+                                    focusNode.requestFocus();
+                                  }
+                                },
+                                tooltip: '发送',
+                              ),
+                            ],
                           ),
-                          IconButton(
-                            icon: const Icon(Icons.send),
-                            onPressed: () {
-                              if (isVoiceMode) return;  // 语音模式下禁用发送按钮
-                              final text = textController.text;
-                              if (text.trim().isNotEmpty && currentConversationId != null) {
-                                final conversation = conversations.firstWhere(
-                                  (conv) => conv.id == currentConversationId,
-                                );
-                                _sendMessage(text, ref, context, conversation, selectedModel);
-                                textController.clear();
-                                focusNode.requestFocus();
-                              }
-                            },
-                            tooltip: '发送',
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
+                ),
+              ],
+            ),
+            if (_showScrollToBottom && currentConversationId != null)
+              Positioned(
+                right: 16,
+                bottom: 80,
+                child: FloatingActionButton(
+                  mini: true,
+                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                  onPressed: () {
+                    scrollController.animateTo(
+                      0,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOut,
+                    );
+                  },
+                  child: Icon(
+                    Icons.keyboard_arrow_down,
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  ),
                 ),
               ),
-            ),
           ],
         ),
       ),
@@ -697,7 +793,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       author: const types.User(id: 'user'),
       id: const Uuid().v4(),
       text: text,
-      createdAt: DateTime.now().millisecondsSinceEpoch,
+      createdAt: DateTime.now().millisecondsSinceEpoch ~/ 1000,
     );
 
     final updatedMessages = [
@@ -713,7 +809,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       author: const types.User(id: 'bot'),
       id: const Uuid().v4(),
       text: '',
-      createdAt: DateTime.now().millisecondsSinceEpoch,
+      createdAt: DateTime.now().millisecondsSinceEpoch ~/ 1000,
     );
 
     final messagesWithBot = [

@@ -23,22 +23,22 @@ class ModelSelector extends ConsumerWidget {
             child: Row(
               children: [
                 if (model == selectedModel)
-                  const Icon(Icons.check, size: 16)
+                  const Icon(Icons.check, size: 12)
                 else
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                 const SizedBox(width: 8),
-                Text(model.name),
+                Text(model.name,style: TextStyle(fontSize: 16),),
               ],
             ),
           );
         }).toList();
       },
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(selectedModel.name),
+            Text(selectedModel.name,style: TextStyle(fontSize: 16),),
             const SizedBox(width: 4),
             const Icon(Icons.arrow_drop_down),
           ],

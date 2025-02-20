@@ -5,10 +5,12 @@ import 'package:ai_app/screens/home_screen.dart';
 import 'package:ai_app/theme/app_theme.dart';
 import 'package:ai_app/providers/theme_provider.dart';
 import 'package:ai_app/services/config_service.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ConfigService().init();
+  await initializeDateFormatting('zh_CN', null);
   runApp(const ProviderScope(child: MyApp()));
 }
 

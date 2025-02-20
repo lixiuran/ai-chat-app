@@ -408,10 +408,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       behavior: HitTestBehavior.opaque,
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
-        // 侧边抽屉
         drawer: const ConversationDrawer(),
-        
-        // 应用栏
         appBar: AppBar(
           leading: Builder(
             builder: (context) => IconButton(
@@ -439,11 +436,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
             const SizedBox(width: 8),
           ],
         ),
-        
-        // 主体内容
         body: Column(
           children: [
-            // 消息列表
             Expanded(
               child: currentConversationId == null
                   ? Center(
@@ -473,26 +467,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                       },
                     ),
             ),
-            
-            // 输入区域
-            if (currentConversationId != null)
-              ChatInput(
-                textController: textController,
-                focusNode: focusNode,
-                isVoiceMode: isVoiceMode,
-                isListening: _isListening,
-                voiceAnimation: _animation,
-                onVoiceModeToggle: _toggleInputMode,
-                onVoiceLongPressStart: _handleVoiceButtonPressed,
-                onVoiceLongPressEnd: _handleVoiceButtonReleased,
-                selectedModel: selectedModel,
-                onSendMessage: (text) {
+            ChatInput(
+              textController: textController,
+              focusNode: focusNode,
+              isVoiceMode: isVoiceMode,
+              isListening: _isListening,
+              voiceAnimation: _animation,
+              onVoiceModeToggle: _toggleInputMode,
+              onVoiceLongPressStart: _handleVoiceButtonPressed,
+              onVoiceLongPressEnd: _handleVoiceButtonReleased,
+              selectedModel: selectedModel,
+              onSendMessage: (text) {
+                if (currentConversationId != null) {
                   final conversation = conversations.firstWhere(
                     (conv) => conv.id == currentConversationId,
                   );
                   _sendMessage(text, conversation, selectedModel);
-                },
-              ),
+                }
+              },
+            ),
           ],
         ),
       ),

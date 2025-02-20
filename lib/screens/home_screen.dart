@@ -28,7 +28,7 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStateMixin {
   final textController = TextEditingController();
   final scrollController = ScrollController();
   final focusNode = FocusNode();
@@ -36,16 +36,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   late stt.SpeechToText _speech;
   bool _isListening = false;
   String _recognizedText = '';
+  
+  // 动画相关变量
+  AnimationController? _animationController;
+  Animation<double>? _animation;
 
   @override
   void initState() {
     super.initState();
     _speech = stt.SpeechToText();
     _initSpeechState();
+    _initAnimationController();
+    
     // 延迟100毫秒后自动弹出键盘
     Future.delayed(const Duration(milliseconds: 100), () {
       focusNode.requestFocus();
     });
+  }
+
+  void _initAnimationController() {
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+    
+    if (_animationController != null) {
+      _animation = Tween<double>(begin: 0.0, end: 1.0).animate(_animationController!);
+    }
   }
 
   // 初始化语音识别状态
@@ -119,6 +136,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       _recognizedText = '';
     });
 
+    // 开始动画
+    if (_animationController != null) {
+      _animationController!.repeat(reverse: true);
+    }
+
     try {
       await _speech.listen(
         onResult: (result) {
@@ -140,6 +162,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     } catch (e) {
       print('开始语音识别错误: $e');
       setState(() => _isListening = false);
+      // 停止动画
+      if (_animationController != null) {
+        _animationController!.stop();
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('开始语音识别失败: $e')),
@@ -157,6 +183,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         setState(() {
           _isListening = false;
         });
+
+        // 停止动画
+        if (_animationController != null) {
+          _animationController!.stop();
+        }
 
         // 等待一小段时间确保获取到最终结果
         await Future.delayed(const Duration(milliseconds: 500));
@@ -200,6 +231,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       setState(() {
         _isListening = false;
       });
+      // 停止动画
+      if (_animationController != null) {
+        _animationController!.stop();
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('停止语音识别失败: $e')),
@@ -214,6 +249,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     scrollController.dispose();
     focusNode.dispose();
     _speech.cancel();
+    if (_animationController != null) {
+      _animationController!.dispose();
+    }
     super.dispose();
   }
 
@@ -443,19 +481,42 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                             color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
                                           ),
                                           color: _isListening 
-                                            ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+                                            ? const Color(0xFF2AAF62).withOpacity(0.2)
                                             : null,
                                         ),
-                                        child: Center(
-                                          child: Text(
-                                            _isListening ? '正在录音...' : '长按说话',
-                                            style: TextStyle(
-                                              color: _isListening 
-                                                ? Theme.of(context).colorScheme.primary
-                                                : Theme.of(context).colorScheme.onSurfaceVariant,
-                                              fontSize: 16,
+                                        child: Stack(
+                                          alignment: Alignment.center,
+                                          children: [
+                                            if (_isListening && _animation != null)
+                                              AnimatedBuilder(
+                                                animation: _animation!,
+                                                builder: (context, child) {
+                                                  return Row(
+                                                    mainAxisAlignment: MainAxisAlignment.center,
+                                                    children: List.generate(3, (index) {
+                                                      return Container(
+                                                        margin: const EdgeInsets.symmetric(horizontal: 2),
+                                                        width: 3,
+                                                        height: 12 + (10 * _animation!.value * ((index + 1) % 2)),
+                                                        decoration: BoxDecoration(
+                                                          color: const Color(0xFF2AAF62),
+                                                          borderRadius: BorderRadius.circular(1.5),
+                                                        ),
+                                                      );
+                                                    }),
+                                                  );
+                                                },
+                                              ),
+                                            Text(
+                                              _isListening ? '松开发送' : '按住说话',
+                                              style: TextStyle(
+                                                color: _isListening 
+                                                  ? const Color(0xFF2AAF62)
+                                                  : Theme.of(context).colorScheme.onSurfaceVariant,
+                                                fontSize: 16,
+                                              ),
                                             ),
-                                          ),
+                                          ],
                                         ),
                                       ),
                                     )

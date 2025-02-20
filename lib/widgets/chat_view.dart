@@ -39,67 +39,84 @@ class ChatView extends ConsumerWidget {
     // 创建文本输入控制器和滚动控制器
     final textController = TextEditingController();
     final scrollController = ScrollController();
+    final focusNode = FocusNode();
 
-    return GestureDetector(
-      onTap: () => FocusScope.of(context).unfocus(), // 点击空白区域收起键盘
-      child: Column(
-        children: [
-          // 消息列表区域
-          Expanded(
+    // 不再自动聚焦
+    // WidgetsBinding.instance.addPostFrameCallback((_) {
+    //   focusNode.requestFocus();
+    // });
+
+    return Column(
+      children: [
+        // 消息列表区域
+        Expanded(
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () => FocusScope.of(context).unfocus(),
             child: Stack(
               children: [
-                ListView.builder(
-                  controller: scrollController,
-                  reverse: true,  // 反向列表，新消息在底部
-                  padding: const EdgeInsets.all(8),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final message = messages[index];
-                    final isUser = message.author.id == 'user';
-                    
-                    // 构建单个消息项
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0),
-                      child: Center(
-                        child: Container(
-                          width: MediaQuery.of(context).size.width * 1,
-                          child: Row(
-                            // 用户消息靠右，机器人消息居中
-                            mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.center,
-                            children: [
-                              Flexible(
-                                child: Container(
-                                  constraints: BoxConstraints(
-                                    // 用户消息宽度70%，机器人消息宽度100%
-                                    maxWidth: isUser 
-                                        ? MediaQuery.of(context).size.width * 0.7
-                                        : MediaQuery.of(context).size.width * 1,
-                                  ),
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                                  decoration: BoxDecoration(
-                                    // 用户消息使用绿色背景，机器人消息使用白色背景
-                                    color: isUser
-                                        ? const Color(0xFF2AAF62)
-                                        : Colors.white,
-                                    borderRadius: BorderRadius.circular(12),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.05),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: _buildMessageContent(message, context),
-                                ),
-                              ),
-                            ],
+                messages.isEmpty
+                    ? Center(
+                        child: Text(
+                          'Hi ~ 我是 AI Chat，快来体验吧',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                         ),
+                      )
+                    : ListView.builder(
+                        controller: scrollController,
+                        reverse: true,  // 反向列表，新消息在底部
+                        padding: const EdgeInsets.all(8),
+                        itemCount: messages.length,
+                        itemBuilder: (context, index) {
+                          final message = messages[index];
+                          final isUser = message.author.id == 'user';
+                          
+                          // 构建单个消息项
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
+                            child: Center(
+                              child: Container(
+                                width: MediaQuery.of(context).size.width * 1,
+                                child: Row(
+                                  // 用户消息靠右，机器人消息居中
+                                  mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.center,
+                                  children: [
+                                    Flexible(
+                                      child: Container(
+                                        constraints: BoxConstraints(
+                                          // 用户消息宽度70%，机器人消息宽度100%
+                                          maxWidth: isUser 
+                                              ? MediaQuery.of(context).size.width * 0.7
+                                              : MediaQuery.of(context).size.width * 1,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                                        decoration: BoxDecoration(
+                                          // 用户消息使用绿色背景，机器人消息使用白色背景
+                                          color: isUser
+                                              ? const Color(0xFF2AAF62)
+                                              : Colors.white,
+                                          borderRadius: BorderRadius.circular(12),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withOpacity(0.05),
+                                              blurRadius: 4,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: _buildMessageContent(message, context),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
-                    );
-                  },
-                ),
                 // 加载状态指示器
                 if (isLoading)
                   Positioned.fill(
@@ -129,82 +146,109 @@ class ChatView extends ConsumerWidget {
               ],
             ),
           ),
-          
-          // 底部输入区域
-          Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  offset: const Offset(0, -1),
-                  blurRadius: 4,
+        ),
+        
+        // 底部输入区域
+        Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                offset: const Offset(0, -1),
+                blurRadius: 4,
+              ),
+            ],
+          ),
+          child: SafeArea(
+            child: Column(
+              children: [
+                if (selectedModel.id == 'deepseek-r1')
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      children: [
+                        _buildFeatureButton(
+                          icon: Icons.psychology_outlined,
+                          label: '深度思考(R1)',
+                          isEnabled: selectedModel.enableDeepThinking,
+                        ),
+                        const SizedBox(width: 8),
+                        _buildFeatureButton(
+                          icon: Icons.search_outlined,
+                          label: '联网搜索',
+                          isEnabled: selectedModel.enableSearch,
+                        ),
+                      ],
+                    ),
+                  ),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.mic_none_outlined),
+                        onPressed: () {
+                          // TODO: 实现语音输入
+                        },
+                        tooltip: '语音输入',
+                      ),
+                      Expanded(
+                        child: Container(
+                          constraints: const BoxConstraints(maxHeight: 120),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          child: TextField(
+                            controller: textController,
+                            focusNode: focusNode,
+                            decoration: InputDecoration(
+                              hintText: '有问题，尽管问',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(24),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                            ),
+                            maxLines: null,
+                            textInputAction: TextInputAction.send,
+                            onSubmitted: (text) {
+                              if (text.trim().isNotEmpty) {
+                                _sendMessage(text, ref, context, currentConversation, selectedModel);
+                                textController.clear();
+                                // 发送后重新聚焦
+                                focusNode.requestFocus();
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.send),
+                        onPressed: () {
+                          final text = textController.text;
+                          if (text.trim().isNotEmpty) {
+                            _sendMessage(text, ref, context, currentConversation, selectedModel);
+                            textController.clear();
+                            // 发送后重新聚焦
+                            focusNode.requestFocus();
+                          }
+                        },
+                        tooltip: '发送',
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-            child: SafeArea(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    // 附件按钮
-                    IconButton(
-                      icon: const Icon(Icons.attach_file),
-                      onPressed: () => _showAttachmentOptions(context, ref, currentConversation),
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    // 文本输入框
-                    Expanded(
-                      child: Container(
-                        constraints: const BoxConstraints(maxHeight: 120),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        child: TextField(
-                          controller: textController,
-                          decoration: InputDecoration(
-                            hintText: '输入消息...',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
-                              borderSide: BorderSide.none,
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                          ),
-                          maxLines: null,
-                          textInputAction: TextInputAction.newline,
-                          onSubmitted: (text) {
-                            if (text.trim().isNotEmpty) {
-                              _sendMessage(text, ref, context, currentConversation, selectedModel);
-                              textController.clear();
-                            }
-                          },
-                        ),
-                      ),
-                    ),
-                    // 发送按钮
-                    IconButton(
-                      icon: const Icon(Icons.send),
-                      onPressed: () {
-                        final text = textController.text;
-                        if (text.trim().isNotEmpty) {
-                          _sendMessage(text, ref, context, currentConversation, selectedModel);
-                          textController.clear();
-                        }
-                      },
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ],
-                ),
-              ),
-            ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -540,5 +584,49 @@ class ChatView extends ConsumerWidget {
       };
     }
     throw UnimplementedError('Message type not supported');
+  }
+
+  Widget _buildFeatureButton({
+    required IconData icon,
+    required String label,
+    required bool isEnabled,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.grey.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: Colors.grey[600],
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[600],
+              ),
+            ),
+            if (isEnabled)
+              Container(
+                margin: const EdgeInsets.only(left: 4),
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  color: Colors.green,
+                  shape: BoxShape.circle,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 } 

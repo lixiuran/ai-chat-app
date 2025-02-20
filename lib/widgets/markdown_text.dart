@@ -20,7 +20,8 @@ class MarkdownText extends StatelessWidget {
       constraints: BoxConstraints(maxWidth: maxWidth),
       child: MarkdownBody(
         data: text,
-        selectable: true,
+        selectable: false,
+        softLineBreak: true,
         styleSheet: MarkdownStyleSheet(
           p: TextStyle(
             color: textColor,

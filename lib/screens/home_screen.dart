@@ -21,6 +21,12 @@ import 'package:intl/intl.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:permission_handler/permission_handler.dart';
 
+// 导入自定义组件
+import 'package:ai_app/widgets/home/chat_input.dart';
+import 'package:ai_app/widgets/home/message_list.dart';
+
+/// 主屏幕
+/// 包含聊天界面、模型选择器和会话抽屉
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -29,64 +35,37 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStateMixin {
+  // 控制器
   final textController = TextEditingController();
   final scrollController = ScrollController();
   final focusNode = FocusNode();
+  
+  // 语音相关
   bool isVoiceMode = false;
   late stt.SpeechToText _speech;
   bool _isListening = false;
   String _recognizedText = '';
+  
+  // 滚动相关
   bool _showScrollToBottom = false;
   
-  // 动画相关变量
+  // 动画相关
   AnimationController? _animationController;
   Animation<double>? _animation;
 
   @override
   void initState() {
     super.initState();
+    _initSpeech();
+    _initAnimation();
+    _initScrollListener();
+    _createNewConversationIfNeeded();
+    _requestFocusAfterDelay();
+  }
+
+  /// 初始化语音识别
+  Future<void> _initSpeech() async {
     _speech = stt.SpeechToText();
-    _initSpeechState();
-    _initAnimationController();
-    
-    scrollController.addListener(() {
-      if (scrollController.position.pixels > 300 && !_showScrollToBottom) {
-        setState(() => _showScrollToBottom = true);
-      } else if (scrollController.position.pixels <= 300 && _showScrollToBottom) {
-        setState(() => _showScrollToBottom = false);
-      }
-    });
-    
-    // 自动创建新对话
-    Future.microtask(() async {
-      final currentConversationId = ref.read(currentConversationProvider);
-      if (currentConversationId == null) {
-        final now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
-        await ref
-            .read(currentConversationProvider.notifier)
-            .createAndSetNewConversation('新对话 $now');
-      }
-    });
-    
-    // 延迟100毫秒后自动弹出键盘
-    Future.delayed(const Duration(milliseconds: 100), () {
-      focusNode.requestFocus();
-    });
-  }
-
-  void _initAnimationController() {
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    );
-    
-    if (_animationController != null) {
-      _animation = Tween<double>(begin: 0.0, end: 1.0).animate(_animationController!);
-    }
-  }
-
-  // 初始化语音识别状态
-  Future<void> _initSpeechState() async {
     try {
       var hasSpeech = await _speech.initialize(
         onError: (error) {
@@ -104,29 +83,75 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       );
 
       if (hasSpeech) {
-        // 获取可用的语音识别语言
         var systemLocale = await _speech.systemLocale();
         var supportedLocales = await _speech.locales();
         
-        print('系统语言: ${systemLocale?.localeId}');
-        print('支持的语言: ${supportedLocales.map((locale) => locale.localeId).join(', ')}');
-        
-        // 检查是否支持中文
         var zhLocale = supportedLocales.firstWhere(
           (locale) => locale.localeId.startsWith('zh'),
           orElse: () => systemLocale!,
         );
         
         print('选择的语言: ${zhLocale.localeId}');
-      } else {
-        print('语音识别初始化失败');
       }
     } catch (e) {
       print('语音识别初始化错误: $e');
     }
   }
 
-  // 处理语音按钮按下
+  /// 初始化动画控制器
+  void _initAnimation() {
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+    
+    if (_animationController != null) {
+      _animation = Tween<double>(begin: 0.0, end: 1.0).animate(_animationController!);
+    }
+  }
+
+  /// 初始化滚动监听
+  void _initScrollListener() {
+    scrollController.addListener(() {
+      if (scrollController.position.pixels > 300 && !_showScrollToBottom) {
+        setState(() => _showScrollToBottom = true);
+      } else if (scrollController.position.pixels <= 300 && _showScrollToBottom) {
+        setState(() => _showScrollToBottom = false);
+      }
+    });
+  }
+
+  /// 如果没有当前会话，创建新会话
+  void _createNewConversationIfNeeded() {
+    Future.microtask(() async {
+      final currentConversationId = ref.read(currentConversationProvider);
+      if (currentConversationId == null) {
+        final now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
+        await ref
+            .read(currentConversationProvider.notifier)
+            .createAndSetNewConversation('新对话 $now');
+      }
+    });
+  }
+
+  /// 延迟请求焦点
+  void _requestFocusAfterDelay() {
+    Future.delayed(const Duration(milliseconds: 100), () {
+      focusNode.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    textController.dispose();
+    scrollController.dispose();
+    focusNode.dispose();
+    _speech.cancel();
+    _animationController?.dispose();
+    super.dispose();
+  }
+
+  /// 处理语音按钮按下
   Future<void> _handleVoiceButtonPressed() async {
     final hasMicPermission = await Permission.microphone.request().isGranted;
     if (!hasMicPermission) {
@@ -139,8 +164,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     }
 
     if (!_speech.isAvailable) {
-      print('语音识别服务不可用，尝试重新初始化...');
-      await _initSpeechState();
+      await _initSpeech();
       if (!_speech.isAvailable) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -156,36 +180,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       _recognizedText = '';
     });
 
-    // 开始动画
-    if (_animationController != null) {
-      _animationController!.repeat(reverse: true);
-    }
+    _animationController?.repeat(reverse: true);
 
     try {
       await _speech.listen(
         onResult: (result) {
-          print('识别结果: ${result.recognizedWords}');
           setState(() {
-            // 只在结果是最终结果时更新文本
             if (result.finalResult) {
               _recognizedText = result.recognizedWords;
-              print('最终识别结果: $_recognizedText');
             }
           });
         },
         localeId: 'zh_CN',
-        listenMode: stt.ListenMode.dictation,  // 使用听写模式
-        partialResults: false,  // 不需要部分结果
+        listenMode: stt.ListenMode.dictation,
+        partialResults: false,
         listenFor: const Duration(seconds: 30),
         pauseFor: const Duration(seconds: 3),
       );
     } catch (e) {
       print('开始语音识别错误: $e');
       setState(() => _isListening = false);
-      // 停止动画
-      if (_animationController != null) {
-        _animationController!.stop();
-      }
+      _animationController?.stop();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('开始语音识别失败: $e')),
@@ -194,26 +209,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     }
   }
 
-  // 处理语音按钮释放
+  /// 处理语音按钮释放
   void _handleVoiceButtonReleased() async {
     try {
       if (_isListening) {
-        print('停止语音识别...');
         await _speech.stop();
-        setState(() {
-          _isListening = false;
-        });
+        setState(() => _isListening = false);
+        _animationController?.stop();
 
-        // 停止动画
-        if (_animationController != null) {
-          _animationController!.stop();
-        }
-
-        // 等待一小段时间确保获取到最终结果
         await Future.delayed(const Duration(milliseconds: 500));
 
         if (_recognizedText.isNotEmpty) {
-          print('发送识别到的文字: $_recognizedText');
           final currentConversationId = ref.read(currentConversationProvider);
           if (currentConversationId != null) {
             final conversations = ref.read(conversationsProvider);
@@ -222,15 +228,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
             );
             final selectedModel = ref.read(selectedModelProvider);
             
-            // 将识别到的文本作为消息发送
-            await _sendMessage(_recognizedText, ref, context, conversation, selectedModel);
-            
-            // 清空识别的文本
-            setState(() {
-              _recognizedText = '';
-            });
+            await _sendMessage(_recognizedText, conversation, selectedModel);
+            setState(() => _recognizedText = '');
           } else {
-            print('没有选中的对话');
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('请先创建或选择一个对话')),
@@ -238,11 +238,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
             }
           }
         } else {
-          print('没有识别到文字');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text(
+              const SnackBar(
+                content: Text(
                   '没有识别到文字，请重试',
                   style: TextStyle(
                     color: Colors.white,
@@ -250,9 +249,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                   ),
                   textAlign: TextAlign.center,
                 ),
-                backgroundColor: const Color(0xFF2AAF62),
-                duration: const Duration(seconds: 1),
-                // behavior: SnackBarBehavior.floating,
+                backgroundColor: Color(0xFF2AAF62),
+                duration: Duration(seconds: 1),
               ),
             );
           }
@@ -260,13 +258,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       }
     } catch (e) {
       print('停止语音识别错误: $e');
-      setState(() {
-        _isListening = false;
-      });
-      // 停止动画
-      if (_animationController != null) {
-        _animationController!.stop();
-      }
+      setState(() => _isListening = false);
+      _animationController?.stop();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('停止语音识别失败: $e')),
@@ -275,517 +268,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     }
   }
 
-  @override
-  void dispose() {
-    textController.dispose();
-    scrollController.dispose();
-    focusNode.dispose();
-    _speech.cancel();
-    if (_animationController != null) {
-      _animationController!.dispose();
-    }
-    super.dispose();
-  }
-
-  // 切换输入模式
+  /// 切换输入模式
   void _toggleInputMode() {
     setState(() {
       isVoiceMode = !isVoiceMode;
       if (!isVoiceMode) {
-        // 切换回键盘模式时自动弹出键盘
         Future.delayed(const Duration(milliseconds: 100), () {
           focusNode.requestFocus();
         });
       } else {
-        // 切换到语音模式时收起键盘
         FocusScope.of(context).unfocus();
       }
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final currentConversationId = ref.watch(currentConversationProvider);
-    final conversations = ref.watch(conversationsProvider);
-    final selectedModel = ref.watch(selectedModelProvider);
-    final isLoading = ref.watch(isLoadingProvider);
-
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => FocusScope.of(context).unfocus(),
-      child: Scaffold(
-        drawer: GestureDetector(
-          onTap: () => FocusScope.of(context).unfocus(),
-          child: const ConversationDrawer(),
-        ),
-        appBar: AppBar(
-          leading: Builder(
-            builder: (context) => IconButton(
-              icon: const Icon(Icons.menu),
-              onPressed: () {
-                FocusScope.of(context).unfocus();
-                Scaffold.of(context).openDrawer();
-              },
-            ),
-          ),
-          title: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              GestureDetector(
-                onTap: () => FocusScope.of(context).unfocus(),
-                child: const ModelSelector(),
-              ),
-            ],
-          ),
-          centerTitle: true,
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.post_add_rounded),
-              tooltip: '新建对话',
-              onPressed: () async {
-                FocusScope.of(context).unfocus();
-                final now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
-                await ref
-                    .read(currentConversationProvider.notifier)
-                    .createAndSetNewConversation('新对话 $now');
-              },
-            ),
-            const SizedBox(width: 8),
-          ],
-        ),
-        body: Stack(
-          children: [
-            Column(
-              children: [
-                Expanded(
-                  child: currentConversationId == null
-                      ? Center(
-                          child: Text(
-                            'Hi ~ 我是 AI Chat，快来体验吧',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        )
-                      : Stack(
-                          children: [
-                            conversations
-                                .firstWhere((conv) => conv.id == currentConversationId)
-                                .messagesList
-                                .isEmpty
-                                ? Center(
-                                    child: Text(
-                                      'Hi ~ 我是 AI Chat，快来体验吧',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                      ),
-                                    ),
-                                  )
-                                : ListView.builder(
-                                    controller: scrollController,
-                                    reverse: true,
-                                    padding: const EdgeInsets.all(8),
-                                    itemCount: conversations
-                                        .firstWhere((conv) => conv.id == currentConversationId)
-                                        .messagesList
-                                        .reversed
-                                        .length,
-                                    itemBuilder: (context, index) {
-                                      final message = conversations
-                                          .firstWhere((conv) => conv.id == currentConversationId)
-                                          .messagesList
-                                          .reversed
-                                          .toList()[index];
-                                      final isUser = message.author.id == 'user';
-                                      final timestamp = (message.createdAt ?? DateTime.now().millisecondsSinceEpoch ~/ 1000) * 1000;
-                                      final timeString = DateFormat('HH:mm', 'zh_CN').format(
-                                        DateTime.fromMillisecondsSinceEpoch(timestamp)
-                                      );
-                                      
-                                      return Column(
-                                        children: [
-                                          if (index == 0 || index == conversations
-                                              .firstWhere((conv) => conv.id == currentConversationId)
-                                              .messagesList
-                                              .length - 1)
-                                            Padding(
-                                              padding: const EdgeInsets.symmetric(vertical: 8.0),
-                                              child: Text(
-                                                timeString,
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                                ),
-                                              ),
-                                            ),
-                                          Padding(
-                                            padding: const EdgeInsets.only(bottom: 8.0),
-                                            child: Center(
-                                              child: SizedBox(
-                                                width: MediaQuery.of(context).size.width,
-                                                child: Row(
-                                                  mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.center,
-                                                  children: [
-                                                    Flexible(
-                                                      child: Container(
-                                                        constraints: BoxConstraints(
-                                                          maxWidth: isUser 
-                                                              ? MediaQuery.of(context).size.width * 0.7
-                                                              : MediaQuery.of(context).size.width,
-                                                        ),
-                                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                                                        decoration: BoxDecoration(
-                                                          color: isUser
-                                                              ? const Color(0xFF2AAF62)
-                                                              : Colors.white,
-                                                          borderRadius: BorderRadius.circular(12),
-                                                          boxShadow: [
-                                                            BoxShadow(
-                                                              color: Colors.black.withOpacity(0.05),
-                                                              blurRadius: 4,
-                                                              offset: const Offset(0, 2),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                        child: _buildMessageContent(message, context),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      );
-                                    },
-                                  ),
-                            if (isLoading)
-                              Positioned.fill(
-                                child: Container(
-                                  color: Colors.black.withOpacity(0.3),
-                                  child: Center(
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        SpinKitDoubleBounce(
-                                          color: Theme.of(context).colorScheme.primary,
-                                          size: 50.0,
-                                        ),
-                                        const SizedBox(height: 16),
-                                        Text(
-                                          '正在思考...',
-                                          style: TextStyle(
-                                            color: Theme.of(context).colorScheme.onBackground,
-                                            fontSize: 16,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                ),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surface,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        offset: const Offset(0, -1),
-                        blurRadius: 4,
-                      ),
-                    ],
-                  ),
-                  child: SafeArea(
-                    child: Column(
-                      children: [
-                        if (selectedModel.id == 'deepseek-r1')
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            child: Row(
-                              children: [
-                                _buildFeatureButton(
-                                  icon: Icons.psychology_outlined,
-                                  label: '深度思考(R1)',
-                                  isEnabled: selectedModel.enableDeepThinking,
-                                ),
-                                const SizedBox(width: 8),
-                                _buildFeatureButton(
-                                  icon: Icons.search_outlined,
-                                  label: '联网搜索',
-                                  isEnabled: selectedModel.enableSearch,
-                                ),
-                              ],
-                            ),
-                          ),
-                        Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              IconButton(
-                                icon: Icon(
-                                  isVoiceMode ? Icons.keyboard_alt_outlined : Icons.mic_none_outlined,
-                                  color: Theme.of(context).colorScheme.onSurface,
-                                  size: 28,
-                                ),
-                                onPressed: _toggleInputMode,
-                                tooltip: isVoiceMode ? '切换键盘' : '切换语音',
-                              ),
-                              Expanded(
-                                child: Container(
-                                  constraints: const BoxConstraints(maxHeight: 120),
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
-                                    borderRadius: BorderRadius.circular(24),
-                                  ),
-                                  child: isVoiceMode
-                                      ? GestureDetector(
-                                          onLongPress: _handleVoiceButtonPressed,
-                                          onLongPressEnd: (_) => _handleVoiceButtonReleased(),
-                                          child: Container(
-                                            height: 50,
-                                            decoration: BoxDecoration(
-                                              borderRadius: BorderRadius.circular(24),
-                                              border: Border.all(
-                                                color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
-                                              ),
-                                              color: _isListening 
-                                                ? const Color(0xFF2AAF62).withOpacity(0.2)
-                                                : null,
-                                            ),
-                                            child: Stack(
-                                              alignment: Alignment.center,
-                                              children: [
-                                                if (_isListening && _animation != null)
-                                                  AnimatedBuilder(
-                                                    animation: _animation!,
-                                                    builder: (context, child) {
-                                                      return Row(
-                                                        mainAxisAlignment: MainAxisAlignment.center,
-                                                        children: List.generate(3, (index) {
-                                                          return Container(
-                                                            margin: const EdgeInsets.symmetric(horizontal: 2),
-                                                            width: 3,
-                                                            height: 12 + (10 * _animation!.value * ((index + 1) % 2)),
-                                                            decoration: BoxDecoration(
-                                                              color: const Color(0xFF2AAF62),
-                                                              borderRadius: BorderRadius.circular(1.5),
-                                                            ),
-                                                          );
-                                                        }),
-                                                      );
-                                                    },
-                                                  ),
-                                                Text(
-                                                  _isListening ? ' ' : '按住说话',
-                                                  style: TextStyle(
-                                                    color: _isListening 
-                                                      ? const Color(0xFF2AAF62)
-                                                      : Theme.of(context).colorScheme.onSurfaceVariant,
-                                                    fontSize: 16,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        )
-                                      : TextField(
-                                          controller: textController,
-                                          focusNode: focusNode,
-                                          decoration: InputDecoration(
-                                            hintText: '有问题，尽管问',
-                                            border: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(24),
-                                              borderSide: BorderSide.none,
-                                            ),
-                                            contentPadding: const EdgeInsets.symmetric(
-                                              horizontal: 16,
-                                              vertical: 12,
-                                            ),
-                                          ),
-                                          maxLines: null,
-                                          textInputAction: TextInputAction.send,
-                                          onSubmitted: (text) {
-                                            if (text.trim().isNotEmpty && currentConversationId != null) {
-                                              final conversation = conversations.firstWhere(
-                                                (conv) => conv.id == currentConversationId,
-                                              );
-                                              _sendMessage(text, ref, context, conversation, selectedModel);
-                                              textController.clear();
-                                              focusNode.requestFocus();
-                                            }
-                                          },
-                                        ),
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.send),
-                                onPressed: () {
-                                  if (isVoiceMode) return;
-                                  final text = textController.text;
-                                  if (text.trim().isNotEmpty && currentConversationId != null) {
-                                    final conversation = conversations.firstWhere(
-                                      (conv) => conv.id == currentConversationId,
-                                    );
-                                    _sendMessage(text, ref, context, conversation, selectedModel);
-                                    textController.clear();
-                                    focusNode.requestFocus();
-                                  }
-                                },
-                                tooltip: '发送',
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            if (_showScrollToBottom && currentConversationId != null)
-              Positioned(
-                right: 16,
-                bottom: 80,
-                child: FloatingActionButton(
-                  mini: true,
-                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                  onPressed: () {
-                    scrollController.animateTo(
-                      0,
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeOut,
-                    );
-                  },
-                  child: Icon(
-                    Icons.keyboard_arrow_down,
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMessageContent(types.Message message, BuildContext context) {
-    if (message is types.TextMessage) {
-      return MarkdownText(
-        text: message.text,
-        textColor: message.author.id == 'user'
-            ? Colors.white
-            : Theme.of(context).colorScheme.onSurface,
-        maxWidth: MediaQuery.of(context).size.width * 0.9,
-      );
-    } else if (message is types.ImageMessage) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.file(
-              File(message.uri),
-              width: 200,
-              height: 200,
-              fit: BoxFit.cover,
-            ),
-          ),
-          if (message.name != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                message.name!,
-                style: TextStyle(
-                  color: message.author.id == 'user'
-                      ? Colors.white.withOpacity(0.7)
-                      : Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-        ],
-      );
-    } else if (message is types.FileMessage) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.attach_file,
-            color: message.author.id == 'user'
-                ? Colors.white
-                : Theme.of(context).colorScheme.onSurface,
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              message.name,
-              style: TextStyle(
-                color: message.author.id == 'user'
-                    ? Colors.white
-                    : Theme.of(context).colorScheme.onSurface,
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-    return const SizedBox();
-  }
-
-  Widget _buildFeatureButton({
-    required IconData icon,
-    required String label,
-    required bool isEnabled,
-  }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.grey.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: Colors.grey[600],
-            ),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[600],
-              ),
-            ),
-            if (isEnabled)
-              Container(
-                margin: const EdgeInsets.only(left: 4),
-                width: 6,
-                height: 6,
-                decoration: const BoxDecoration(
-                  color: Colors.green,
-                  shape: BoxShape.circle,
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
+  /// 发送消息
   Future<void> _sendMessage(
     String text,
-    WidgetRef ref,
-    BuildContext context,
     Conversation currentConversation,
     AIModel selectedModel,
   ) async {
@@ -854,7 +353,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
             );
       }
     } catch (e) {
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('发送消息失败：$e')),
         );
@@ -864,6 +363,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     }
   }
 
+  /// 将消息对象转换为JSON格式
   Map<String, dynamic> _messageToJson(types.Message message) {
     if (message is types.TextMessage) {
       return {
@@ -895,5 +395,107 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       };
     }
     throw UnimplementedError('Message type not supported');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentConversationId = ref.watch(currentConversationProvider);
+    final conversations = ref.watch(conversationsProvider);
+    final selectedModel = ref.watch(selectedModelProvider);
+    final isLoading = ref.watch(isLoadingProvider);
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        // 侧边抽屉
+        drawer: const ConversationDrawer(),
+        
+        // 应用栏
+        appBar: AppBar(
+          leading: Builder(
+            builder: (context) => IconButton(
+              icon: const Icon(Icons.menu),
+              onPressed: () {
+                FocusScope.of(context).unfocus();
+                Scaffold.of(context).openDrawer();
+              },
+            ),
+          ),
+          title: const ModelSelector(),
+          centerTitle: true,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.post_add_rounded),
+              tooltip: '新建对话',
+              onPressed: () async {
+                FocusScope.of(context).unfocus();
+                final now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
+                await ref
+                    .read(currentConversationProvider.notifier)
+                    .createAndSetNewConversation('新对话 $now');
+              },
+            ),
+            const SizedBox(width: 8),
+          ],
+        ),
+        
+        // 主体内容
+        body: Column(
+          children: [
+            // 消息列表
+            Expanded(
+              child: currentConversationId == null
+                  ? Center(
+                      child: Text(
+                        'Hi ~ 我是 AI Chat，快来体验吧',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    )
+                  : MessageList(
+                      messages: conversations
+                          .firstWhere((conv) => conv.id == currentConversationId)
+                          .messagesList
+                          .reversed
+                          .toList(),
+                      isLoading: isLoading,
+                      scrollController: scrollController,
+                      showScrollToBottom: _showScrollToBottom,
+                      onScrollToBottom: () {
+                        scrollController.animateTo(
+                          0,
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOut,
+                        );
+                      },
+                    ),
+            ),
+            
+            // 输入区域
+            if (currentConversationId != null)
+              ChatInput(
+                textController: textController,
+                focusNode: focusNode,
+                isVoiceMode: isVoiceMode,
+                isListening: _isListening,
+                voiceAnimation: _animation,
+                onVoiceModeToggle: _toggleInputMode,
+                onVoiceLongPressStart: _handleVoiceButtonPressed,
+                onVoiceLongPressEnd: _handleVoiceButtonReleased,
+                selectedModel: selectedModel,
+                onSendMessage: (text) {
+                  final conversation = conversations.firstWhere(
+                    (conv) => conv.id == currentConversationId,
+                  );
+                  _sendMessage(text, conversation, selectedModel);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
   }
 } 

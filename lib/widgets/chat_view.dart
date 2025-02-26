@@ -6,14 +6,10 @@ import 'package:ai_app/providers/model_provider.dart';
 import 'package:ai_app/providers/conversation_provider.dart';
 import 'package:ai_app/models/conversation.dart';
 import 'package:ai_app/models/ai_model.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:io';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:ai_app/widgets/markdown_text.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// 聊天界面组件
 /// 实现了消息列表显示、消息发送、文件上传等功能
@@ -78,7 +74,7 @@ class ChatView extends ConsumerWidget {
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 8.0),
                             child: Center(
-                              child: Container(
+                              child: SizedBox(
                                 width: MediaQuery.of(context).size.width * 1,
                                 child: Row(
                                   // 用户消息靠右，机器人消息居中
@@ -101,13 +97,13 @@ class ChatView extends ConsumerWidget {
                                           borderRadius: BorderRadius.circular(12),
                                           boxShadow: [
                                             BoxShadow(
-                                              color: Colors.black.withOpacity(0.05),
+                                              color: Colors.black.withAlpha(13),
                                               blurRadius: 4,
                                               offset: const Offset(0, 2),
                                             ),
                                           ],
                                         ),
-                                        child: _buildMessageContent(message, context),
+                                        child: _buildMessageContent(message, ref),
                                       ),
                                     ),
                                   ],
@@ -121,7 +117,7 @@ class ChatView extends ConsumerWidget {
                 if (isLoading)
                   Positioned.fill(
                     child: Container(
-                      color: Colors.black.withOpacity(0.3),
+                      color: Colors.black.withAlpha(77),
                       child: Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -134,7 +130,7 @@ class ChatView extends ConsumerWidget {
                             Text(
                               '正在思考...',
                               style: TextStyle(
-                                color: Theme.of(context).colorScheme.onBackground,
+                                color: Theme.of(context).colorScheme.onSurface,
                                 fontSize: 16,
                               ),
                             ),
@@ -154,7 +150,7 @@ class ChatView extends ConsumerWidget {
             color: Theme.of(context).colorScheme.surface,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withAlpha(13),
                 offset: const Offset(0, -1),
                 blurRadius: 4,
               ),
@@ -190,7 +186,6 @@ class ChatView extends ConsumerWidget {
                       IconButton(
                         icon: const Icon(Icons.mic_none_outlined),
                         onPressed: () {
-                          // TODO: 实现语音输入
                         },
                         tooltip: '语音输入',
                       ),
@@ -198,7 +193,7 @@ class ChatView extends ConsumerWidget {
                         child: Container(
                           constraints: const BoxConstraints(maxHeight: 120),
                           decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
+                            color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(128),
                             borderRadius: BorderRadius.circular(24),
                           ),
                           child: TextField(
@@ -254,9 +249,35 @@ class ChatView extends ConsumerWidget {
 
   /// 构建消息内容
   /// 支持文本消息、图片消息和文件消息
-  Widget _buildMessageContent(types.Message message, BuildContext context) {
+  Widget _buildMessageContent(types.Message message, WidgetRef ref) {
+    final isLoading = ref.watch(isLoadingProvider);
+    final context = ref.context;
+    
     if (message is types.TextMessage) {
-      // 文本消息使用 MarkdownText 组件渲染
+      // 如果是空消息且正在加载，显示加载动画
+      if (!message.author.id.contains('user') && 
+          message.text.isEmpty && 
+          isLoading) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SpinKitThreeBounce(
+              color: Theme.of(context).colorScheme.primary,
+              size: 16,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '思考中...',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        );
+      }
+      
+      // 显示文本消息
       return MarkdownText(
         text: message.text,
         textColor: message.author.id == 'user'
@@ -265,7 +286,7 @@ class ChatView extends ConsumerWidget {
         maxWidth: MediaQuery.of(context).size.width * 0.9,
       );
     } else if (message is types.ImageMessage) {
-      // 图片消息显示图片预览和文件名
+      // 显示图片消息
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -278,14 +299,14 @@ class ChatView extends ConsumerWidget {
               fit: BoxFit.cover,
             ),
           ),
-          if (message.name != null)
+          if (message.name.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                message.name!,
+                message.name,
                 style: TextStyle(
                   color: message.author.id == 'user'
-                      ? Colors.white.withOpacity(0.7)
+                      ? Colors.white.withAlpha(179)
                       : Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 12,
                 ),
@@ -319,48 +340,6 @@ class ChatView extends ConsumerWidget {
       );
     }
     return const SizedBox();
-  }
-
-  /// 显示附件选项菜单
-  /// 支持选择图片和文件
-  Future<void> _showAttachmentOptions(
-    BuildContext context,
-    WidgetRef ref,
-    Conversation currentConversation,
-  ) async {
-    final result = await showModalBottomSheet<String>(
-      context: context,
-      builder: (BuildContext context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              ListTile(
-                leading: const Icon(Icons.photo),
-                title: const Text('选择图片'),
-                onTap: () => Navigator.pop(context, 'image'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.attach_file),
-                title: const Text('选择文件'),
-                onTap: () => Navigator.pop(context, 'file'),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-
-    if (result == null) return;
-
-    switch (result) {
-      case 'image':
-        await _handleImageSelection(context, ref, currentConversation);
-        break;
-      case 'file':
-        await _handleFileSelection(context, ref, currentConversation);
-        break;
-    }
   }
 
   /// 发送消息
@@ -454,104 +433,6 @@ class ChatView extends ConsumerWidget {
     }
   }
 
-  /// 处理图片选择
-  Future<void> _handleImageSelection(
-    BuildContext context,
-    WidgetRef ref,
-    Conversation currentConversation,
-  ) async {
-    final result = await ImagePicker().pickImage(
-      imageQuality: 70,
-      maxWidth: 1440,
-      source: ImageSource.gallery,
-    );
-
-    if (result != null) {
-      final bytes = await result.readAsBytes();
-      final image = await _saveFile(bytes, result.name);
-      
-      // 创建图片消息
-      final imageMessage = types.ImageMessage(
-        author: const types.User(id: 'user'),
-        createdAt: DateTime.now().millisecondsSinceEpoch,
-        id: const Uuid().v4(),
-        name: result.name,
-        size: bytes.length,
-        uri: image.path,
-      );
-
-      // 更新会话，添加图片消息
-      final updatedMessages = [
-        ...currentConversation.messages,
-        _messageToJson(imageMessage),
-      ];
-
-      ref.read(conversationsProvider.notifier).updateConversation(
-            currentConversation.copyWith(messages: updatedMessages),
-          );
-
-      // 显示提示对话框
-      if (context.mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('图片已上传'),
-            content: const Text('由于当前模型不支持直接的图片分析，您可以手动描述图片内容，我会基于您的描述进行回答。'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('我知道了'),
-              ),
-            ],
-          ),
-        );
-      }
-    }
-  }
-
-  /// 处理文件选择
-  Future<void> _handleFileSelection(
-    BuildContext context,
-    WidgetRef ref,
-    Conversation currentConversation,
-  ) async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.any,
-    );
-
-    if (result != null && result.files.single.path != null) {
-      final file = File(result.files.single.path!);
-      final size = await file.length();
-      final name = result.files.single.name;
-
-      final message = types.FileMessage(
-        author: const types.User(id: 'user'),
-        createdAt: DateTime.now().millisecondsSinceEpoch,
-        id: const Uuid().v4(),
-        name: name,
-        size: size,
-        uri: file.path,
-      );
-
-      final updatedMessages = [
-        ...currentConversation.messages,
-        _messageToJson(message),
-      ];
-
-      ref.read(conversationsProvider.notifier).updateConversation(
-            currentConversation.copyWith(messages: updatedMessages),
-          );
-    }
-  }
-
-  /// 保存文件到本地
-  Future<File> _saveFile(List<int> bytes, String name) async {
-    final directory = await getApplicationDocumentsDirectory();
-    final file = File('${directory.path}/$name');
-    await file.writeAsBytes(bytes);
-    return file;
-  }
-
   /// 将消息对象转换为JSON格式
   Map<String, dynamic> _messageToJson(types.Message message) {
     if (message is types.TextMessage) {
@@ -595,7 +476,7 @@ class ChatView extends ConsumerWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.grey.withOpacity(0.1),
+          color: Colors.grey.withAlpha(26),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(

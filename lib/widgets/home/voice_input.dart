@@ -26,11 +26,9 @@ class VoiceInputButton extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
-            color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
+            color: Theme.of(context).colorScheme.outline.withAlpha(128),
           ),
-          color: isListening 
-            ? const Color(0xFF2AAF62).withOpacity(0.2)
-            : null,
+          color: Theme.of(context).colorScheme.primary.withAlpha(26),
         ),
         child: Stack(
           alignment: Alignment.center,

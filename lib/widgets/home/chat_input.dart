@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ai_app/models/ai_model.dart';
-import 'package:ai_app/models/conversation.dart';
 import 'package:ai_app/widgets/home/voice_input.dart';
 import 'package:ai_app/widgets/home/feature_button.dart';
 
@@ -40,7 +39,7 @@ class ChatInput extends ConsumerWidget {
         color: Theme.of(context).colorScheme.surface,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withAlpha(13),
             offset: const Offset(0, -1),
             blurRadius: 4,
           ),
@@ -92,7 +91,7 @@ class ChatInput extends ConsumerWidget {
                     child: Container(
                       constraints: const BoxConstraints(maxHeight: 120),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
+                        color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(128),
                         borderRadius: BorderRadius.circular(24),
                       ),
                       child: isVoiceMode

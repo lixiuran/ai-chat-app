@@ -29,25 +29,24 @@ class MarkdownText extends StatelessWidget {
             height: 1.5,
           ),
           code: TextStyle(
-            color: textColor,
-            fontSize: 14,
+            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(192),
             fontFamily: 'monospace',
-            backgroundColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
+            fontSize: 14,
           ),
           codeblockDecoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
+            color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(166),
             borderRadius: BorderRadius.circular(8),
           ),
           codeblockPadding: const EdgeInsets.all(12),
           blockquote: TextStyle(
-            color: textColor.withOpacity(0.8),
+            color: textColor.withAlpha(204),
             fontSize: 16,
-            height: 1.5,
+            fontStyle: FontStyle.italic,
           ),
           blockquoteDecoration: BoxDecoration(
             border: Border(
               left: BorderSide(
-                color: textColor.withOpacity(0.5),
+                color: textColor.withAlpha(77),
                 width: 4,
               ),
             ),

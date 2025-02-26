@@ -71,7 +71,7 @@ class ConversationsNotifier extends StateNotifier<List<Conversation>> {
 }
 
 class CurrentConversationNotifier extends StateNotifier<String?> {
-  final StateNotifierProviderRef ref;
+  final Ref ref;
 
   CurrentConversationNotifier(this.ref) : super(null);
 

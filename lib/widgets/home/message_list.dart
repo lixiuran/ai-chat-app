@@ -91,7 +91,7 @@ class MessageList extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(12),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
+                                    color: Colors.black.withAlpha(13),
                                     blurRadius: 4,
                                     offset: const Offset(0, 2),
                                   ),
@@ -177,14 +177,14 @@ class MessageList extends StatelessWidget {
               fit: BoxFit.cover,
             ),
           ),
-          if (message.name != null)
+          if (message.name.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                message.name!,
+                message.name,
                 style: TextStyle(
                   color: message.author.id == 'user'
-                      ? Colors.white.withOpacity(0.7)
+                      ? Colors.white.withAlpha(179)
                       : Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 12,
                 ),

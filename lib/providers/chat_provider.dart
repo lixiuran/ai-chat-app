@@ -12,7 +12,7 @@ final isLoadingProvider = StateProvider<bool>((ref) => false);
 class ChatMessagesNotifier extends StateNotifier<List<types.Message>> {
   final ChatService _chatService;
   final ConfigService _configService;
-  final StateNotifierProviderRef ref;
+  final Ref ref;
 
   ChatMessagesNotifier(this.ref, this._chatService)
       : _configService = ConfigService(),

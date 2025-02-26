@@ -2,28 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:ai_app/providers/chat_provider.dart';
-import 'package:ai_app/providers/model_provider.dart';
 import 'package:ai_app/providers/conversation_provider.dart';
-import 'package:ai_app/models/conversation.dart';
+import 'package:ai_app/providers/model_provider.dart';
 import 'package:ai_app/models/ai_model.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:uuid/uuid.dart';
-import 'dart:io';
-import 'package:flutter_spinkit/flutter_spinkit.dart';
-import 'package:ai_app/widgets/markdown_text.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:ai_app/widgets/model_selector.dart';
-import 'package:ai_app/widgets/conversation_drawer.dart';
-import 'package:ai_app/providers/theme_provider.dart';
-import 'package:intl/intl.dart';
+import 'package:ai_app/models/conversation.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
-import 'package:permission_handler/permission_handler.dart';
-
-// 导入自定义组件
+import 'package:uuid/uuid.dart';
 import 'package:ai_app/widgets/home/chat_input.dart';
 import 'package:ai_app/widgets/home/message_list.dart';
+import 'package:ai_app/widgets/conversation_drawer.dart';
+import 'package:ai_app/widgets/model_selector.dart';
+import 'package:intl/intl.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'dart:developer' as developer;
 
 /// 主屏幕
 /// 包含聊天界面、模型选择器和会话抽屉
@@ -61,6 +52,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     _initScrollListener();
     _createNewConversationIfNeeded();
     _requestFocusAfterDelay();
+    
+    // 初始化完成后打印日志
+    developer.log('HomeScreen initialized');
+    
+    // 监听焦点变化
+    focusNode.addListener(() {
+      if (focusNode.hasFocus) {
+        developer.log('Input field focused');
+      }
+    });
+    
+    // 初始化语音动画
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+    
+    _animation = Tween<double>(begin: 0.0, end: 1.0).animate(_animationController!);
+    
+    developer.log('Animation controller initialized');
   }
 
   /// 初始化语音识别
@@ -69,11 +80,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     try {
       var hasSpeech = await _speech.initialize(
         onError: (error) {
-          print('语音识别错误: ${error.errorMsg}');
+          developer.log('语音识别错误: ${error.errorMsg}');
           setState(() => _isListening = false);
         },
         onStatus: (status) {
-          print('语音识别状态: $status');
+          developer.log('语音识别状态: $status');
           if (status == 'done' && _isListening) {
             _handleVoiceButtonReleased();
           }
@@ -91,10 +102,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
           orElse: () => systemLocale!,
         );
         
-        print('选择的语言: ${zhLocale.localeId}');
+        developer.log('选择的语言: ${zhLocale.localeId}');
       }
     } catch (e) {
-      print('语音识别初始化错误: $e');
+      developer.log('语音识别初始化错误: $e');
     }
   }
 
@@ -192,13 +203,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
           });
         },
         localeId: 'zh_CN',
-        listenMode: stt.ListenMode.dictation,
-        partialResults: false,
-        listenFor: const Duration(seconds: 30),
-        pauseFor: const Duration(seconds: 3),
       );
     } catch (e) {
-      print('开始语音识别错误: $e');
+      developer.log('开始语音识别错误: $e');
       setState(() => _isListening = false);
       _animationController?.stop();
       if (mounted) {
@@ -257,7 +264,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
         }
       }
     } catch (e) {
-      print('停止语音识别错误: $e');
+      developer.log('停止语音识别错误: $e');
       setState(() => _isListening = false);
       _animationController?.stop();
       if (mounted) {

@@ -24,7 +24,7 @@ class ConversationDrawer extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                color: Theme.of(context).colorScheme.primary.withAlpha(26),
               ),
               child: SafeArea(
                 bottom: false,
@@ -106,7 +106,7 @@ class ConversationDrawer extends ConsumerWidget {
                         foregroundColor: Theme.of(context).colorScheme.primary,
                         minimumSize: const Size(double.infinity, 44),
                         side: BorderSide(
-                          color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                          color: Theme.of(context).colorScheme.primary.withAlpha(128),
                         ),
                       ),
                     ),
@@ -125,7 +125,7 @@ class ConversationDrawer extends ConsumerWidget {
                           Icon(
                             Icons.chat_bubble_outline,
                             size: 48,
-                            color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                            color: Theme.of(context).colorScheme.primary.withAlpha(128),
                           ),
                           const SizedBox(height: 16),
                           Text(
@@ -207,16 +207,16 @@ class ConversationDrawer extends ConsumerWidget {
                             },
                             child: ListTile(
                               selected: isSelected,
-                              selectedTileColor: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
+                              selectedTileColor: Theme.of(context).colorScheme.primaryContainer.withAlpha(77),
                               leading: CircleAvatar(
                                 backgroundColor: isSelected
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Theme.of(context).colorScheme.surfaceVariant,
+                                    ? Theme.of(context).colorScheme.primaryContainer.withAlpha(77)
+                                    : Colors.transparent,
                                 child: Icon(
                                   Icons.chat_bubble_outline,
                                   color: isSelected
-                                      ? Theme.of(context).colorScheme.onPrimary
-                                      : Theme.of(context).colorScheme.primary,
+                                      ? Theme.of(context).colorScheme.primary.withAlpha(26)
+                                      : Colors.transparent,
                                   size: 20,
                                 ),
                               ),
@@ -257,11 +257,13 @@ class ConversationDrawer extends ConsumerWidget {
             Container(
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surface,
-                border: Border(
-                  top: BorderSide(
-                    color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.2),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(13),
+                    offset: const Offset(1, 0),
+                    blurRadius: 4,
                   ),
-                ),
+                ],
               ),
               child: SafeArea(
                 top: false,
@@ -270,7 +272,7 @@ class ConversationDrawer extends ConsumerWidget {
                   child: Row(
                     children: [
                       CircleAvatar(
-                        backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                        backgroundColor: Theme.of(context).colorScheme.primary.withAlpha(26),
                         child: Icon(
                           Icons.person_outline,
                           color: Theme.of(context).colorScheme.primary,
@@ -311,7 +313,6 @@ class ConversationDrawer extends ConsumerWidget {
                       IconButton(
                         icon: const Icon(Icons.settings_outlined),
                         onPressed: () {
-                          // TODO: 打开设置页面
                         },
                         tooltip: '设置',
                       ),

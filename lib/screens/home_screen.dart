@@ -16,7 +16,6 @@ import 'package:ai_app/providers/chat_provider.dart';
 import 'package:ai_app/providers/model_provider.dart';
 import 'package:ai_app/models/ai_model.dart';
 import 'package:ai_app/models/conversation.dart';
-import 'package:ai_app/services/chat_service.dart';
 
 /// 主屏幕
 /// 包含聊天界面、模型选择器和会话抽屉
@@ -101,7 +100,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
             _currentLocale = zhLocale.first;
           });
           developer.log('设置语音识别语言为: ${zhLocale.first.name}');
+        } else {
+          developer.log('未找到中文语言，将使用默认语言');
         }
+      } else {
+        developer.log('语音识别不可用');
       }
     } catch (e) {
       developer.log('初始化语音识别失败: $e');
@@ -143,38 +146,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
     _animationController.repeat(reverse: true);
 
     try {
-      if (_currentLocale != null) {
-        await _speech.listen(
-          onResult: (result) {
-            setState(() {
-              if (result.finalResult) {
-                textController.text = result.recognizedWords;
-              }
-            });
-          },
-          localeId: _currentLocale!.localeId,
-          listenMode: ListenMode.confirmation,
-          cancelOnError: true,
-          partialResults: true,
-          listenFor: const Duration(seconds: 30),
-          pauseFor: const Duration(seconds: 3),
-        );
-      } else {
-        await _speech.listen(
-          onResult: (result) {
-            setState(() {
-              if (result.finalResult) {
-                textController.text = result.recognizedWords;
-              }
-            });
-          },
-          listenMode: ListenMode.confirmation,
-          cancelOnError: true,
-          partialResults: true,
-          listenFor: const Duration(seconds: 30),
-          pauseFor: const Duration(seconds: 3),
-        );
-      }
+      await _speech.listen(
+        onResult: (result) {
+          setState(() {
+            if (result.finalResult) {
+              textController.text = result.recognizedWords;
+            }
+          });
+        },
+        localeId: _currentLocale?.localeId,
+        listenMode: ListenMode.confirmation,
+        cancelOnError: true,
+        partialResults: true,
+        listenFor: const Duration(seconds: 30),
+        pauseFor: const Duration(seconds: 3),
+      );
     } catch (e) {
       developer.log('开始语音识别错误: $e');
       setState(() => _isListening = false);
@@ -195,6 +181,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
         setState(() => _isListening = false);
         _animationController.stop();
 
+        // 确保在处理文本前语音识别已完全停止
         await Future.delayed(const Duration(milliseconds: 500));
 
         if (textController.text.isNotEmpty) {

@@ -1,20 +1,22 @@
+import 'dart:async';
+import 'dart:developer' as developer;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
-import 'package:ai_app/providers/chat_provider.dart';
-import 'package:ai_app/providers/conversation_provider.dart';
-import 'package:ai_app/providers/model_provider.dart';
-import 'package:ai_app/models/ai_model.dart';
-import 'package:ai_app/models/conversation.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
-import 'package:uuid/uuid.dart';
-import 'package:ai_app/widgets/home/chat_input.dart';
-import 'package:ai_app/widgets/home/message_list.dart';
-import 'package:ai_app/widgets/conversation_drawer.dart';
-import 'package:ai_app/widgets/model_selector.dart';
 import 'package:intl/intl.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'dart:developer' as developer;
+import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
+import 'package:uuid/uuid.dart';
+
+import '../providers/chat_provider.dart';
+import '../providers/conversation_provider.dart';
+import '../providers/model_provider.dart';
+import '../models/ai_model.dart';
+import '../models/conversation.dart';
+import '../widgets/home/chat_input.dart';
+import '../widgets/home/message_list.dart';
+import '../widgets/conversation_drawer.dart';
+import '../widgets/model_selector.dart';
 
 /// 主屏幕
 /// 包含聊天界面、模型选择器和会话抽屉
@@ -25,192 +27,161 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStateMixin {
-  // 控制器
-  final textController = TextEditingController();
-  final scrollController = ScrollController();
-  final focusNode = FocusNode();
-  
-  // 语音相关
-  bool isVoiceMode = false;
-  late stt.SpeechToText _speech;
+class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProviderStateMixin {
+  late TextEditingController textController;
+  late FocusNode textFocusNode;
+  late AnimationController _animationController;
   bool _isListening = false;
-  String _recognizedText = '';
-  
-  // 滚动相关
+  final stt.SpeechToText _speech = stt.SpeechToText();
+  stt.LocaleName? _currentLocale;
+  final ScrollController _scrollController = ScrollController();
   bool _showScrollToBottom = false;
+  bool isVoiceMode = false;
   
-  // 动画相关
-  AnimationController? _animationController;
-  Animation<double>? _animation;
+  // 动画控制器
+  late Animation<double> _animation;
 
   @override
   void initState() {
     super.initState();
-    _initSpeech();
-    _initAnimation();
-    _initScrollListener();
-    _createNewConversationIfNeeded();
-    _requestFocusAfterDelay();
     
-    // 初始化完成后打印日志
-    developer.log('HomeScreen initialized');
+    // 初始化控制器
+    textController = TextEditingController();
+    textFocusNode = FocusNode();
+    
+    // 初始化动画控制器
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    _animation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    );
+    
+    // 初始化语音识别
+    _initSpeech();
+    
+    // 监听滚动
+    _scrollController.addListener(_scrollListener);
     
     // 监听焦点变化
-    focusNode.addListener(() {
-      if (focusNode.hasFocus) {
+    textFocusNode.addListener(() {
+      if (textFocusNode.hasFocus) {
         developer.log('Input field focused');
       }
     });
     
-    // 初始化语音动画
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    );
+    // 请求焦点
+    _requestFocusAfterDelay();
     
-    _animation = Tween<double>(begin: 0.0, end: 1.0).animate(_animationController!);
-    
-    developer.log('Animation controller initialized');
+    // 初始化完成后打印日志
+    developer.log('HomeScreen initialized');
   }
 
   /// 初始化语音识别
   Future<void> _initSpeech() async {
-    _speech = stt.SpeechToText();
     try {
-      var hasSpeech = await _speech.initialize(
-        onError: (error) {
-          developer.log('语音识别错误: ${error.errorMsg}');
-          setState(() => _isListening = false);
-        },
-        onStatus: (status) {
-          developer.log('语音识别状态: $status');
-          if (status == 'done' && _isListening) {
-            _handleVoiceButtonReleased();
-          }
-        },
-        finalTimeout: const Duration(seconds: 5),
-        debugLogging: true,
+      final available = await _speech.initialize(
+        onError: (error) => developer.log('语音识别错误: $error'),
+        onStatus: (status) => developer.log('语音识别状态: $status'),
       );
 
-      if (hasSpeech) {
-        var systemLocale = await _speech.systemLocale();
-        var supportedLocales = await _speech.locales();
+      if (available) {
+        var locales = await _speech.locales();
         
-        var zhLocale = supportedLocales.firstWhere(
-          (locale) => locale.localeId.startsWith('zh'),
-          orElse: () => systemLocale!,
-        );
+        // 尝试找到中文语言
+        var zhLocale = locales.where((locale) => 
+          locale.localeId.startsWith('zh') || 
+          locale.name.toLowerCase().contains('chinese')
+        ).toList();
         
-        developer.log('选择的语言: ${zhLocale.localeId}');
+        if (zhLocale.isNotEmpty) {
+          setState(() {
+            _currentLocale = zhLocale.first;
+          });
+          developer.log('设置语音识别语言为: ${zhLocale.first.name}');
+        }
       }
     } catch (e) {
-      developer.log('语音识别初始化错误: $e');
-    }
-  }
-
-  /// 初始化动画控制器
-  void _initAnimation() {
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    );
-    
-    if (_animationController != null) {
-      _animation = Tween<double>(begin: 0.0, end: 1.0).animate(_animationController!);
+      developer.log('初始化语音识别失败: $e');
     }
   }
 
   /// 初始化滚动监听
-  void _initScrollListener() {
-    scrollController.addListener(() {
-      if (scrollController.position.pixels > 300 && !_showScrollToBottom) {
-        setState(() => _showScrollToBottom = true);
-      } else if (scrollController.position.pixels <= 300 && _showScrollToBottom) {
-        setState(() => _showScrollToBottom = false);
-      }
-    });
+  void _scrollListener() {
+    if (_scrollController.position.pixels > 300 && !_showScrollToBottom) {
+      setState(() => _showScrollToBottom = true);
+    } else if (_scrollController.position.pixels <= 300 && _showScrollToBottom) {
+      setState(() => _showScrollToBottom = false);
+    }
   }
 
-  /// 如果没有当前会话，创建新会话
-  void _createNewConversationIfNeeded() {
-    Future.microtask(() async {
-      final currentConversationId = ref.read(currentConversationProvider);
-      if (currentConversationId == null) {
-        final now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
-        await ref
-            .read(currentConversationProvider.notifier)
-            .createAndSetNewConversation('新对话 $now');
-      }
-    });
-  }
-
-  /// 延迟请求焦点
+  /// 请求焦点
   void _requestFocusAfterDelay() {
     Future.delayed(const Duration(milliseconds: 100), () {
-      focusNode.requestFocus();
+      textFocusNode.requestFocus();
     });
   }
 
   @override
   void dispose() {
     textController.dispose();
-    scrollController.dispose();
-    focusNode.dispose();
+    _scrollController.dispose();
+    textFocusNode.dispose();
     _speech.cancel();
-    _animationController?.dispose();
+    _animationController.dispose();
     super.dispose();
   }
 
-  /// 处理语音按钮按下
+  /// 处理语音按钮按下事件
   Future<void> _handleVoiceButtonPressed() async {
-    final hasMicPermission = await Permission.microphone.request().isGranted;
-    if (!hasMicPermission) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('需要麦克风权限才能使用语音功能')),
-        );
-      }
-      return;
-    }
-
-    if (!_speech.isAvailable) {
-      await _initSpeech();
-      if (!_speech.isAvailable) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('语音识别服务不可用')),
-          );
-        }
-        return;
-      }
-    }
-
     setState(() {
       _isListening = true;
-      _recognizedText = '';
     });
 
-    _animationController?.repeat(reverse: true);
+    _animationController.repeat(reverse: true);
 
     try {
-      await _speech.listen(
-        onResult: (result) {
-          setState(() {
-            if (result.finalResult) {
-              _recognizedText = result.recognizedWords;
-            }
-          });
-        },
-        localeId: 'zh_CN',
-      );
+      if (_currentLocale != null) {
+        await _speech.listen(
+          onResult: (result) {
+            setState(() {
+              if (result.finalResult) {
+                textController.text = result.recognizedWords;
+              }
+            });
+          },
+          localeId: _currentLocale!.localeId,
+          listenMode: stt.ListenMode.confirmation,
+          cancelOnError: true,
+          partialResults: true,
+          listenFor: const Duration(seconds: 30),
+          pauseFor: const Duration(seconds: 3),
+        );
+      } else {
+        await _speech.listen(
+          onResult: (result) {
+            setState(() {
+              if (result.finalResult) {
+                textController.text = result.recognizedWords;
+              }
+            });
+          },
+          listenMode: stt.ListenMode.confirmation,
+          cancelOnError: true,
+          partialResults: true,
+          listenFor: const Duration(seconds: 30),
+          pauseFor: const Duration(seconds: 3),
+        );
+      }
     } catch (e) {
       developer.log('开始语音识别错误: $e');
       setState(() => _isListening = false);
-      _animationController?.stop();
+      _animationController.stop();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('开始语音识别失败: $e')),
+          SnackBar(content: Text('语音识别失败: $e')),
         );
       }
     }
@@ -222,11 +193,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       if (_isListening) {
         await _speech.stop();
         setState(() => _isListening = false);
-        _animationController?.stop();
+        _animationController.stop();
 
         await Future.delayed(const Duration(milliseconds: 500));
 
-        if (_recognizedText.isNotEmpty) {
+        if (textController.text.isNotEmpty) {
           final currentConversationId = ref.read(currentConversationProvider);
           if (currentConversationId != null) {
             final conversations = ref.read(conversationsProvider);
@@ -235,8 +206,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
             );
             final selectedModel = ref.read(selectedModelProvider);
             
-            await _sendMessage(_recognizedText, conversation, selectedModel);
-            setState(() => _recognizedText = '');
+            await _sendMessage(textController.text, conversation, selectedModel);
+            textController.clear();
           } else {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -266,7 +237,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     } catch (e) {
       developer.log('停止语音识别错误: $e');
       setState(() => _isListening = false);
-      _animationController?.stop();
+      _animationController.stop();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('停止语音识别失败: $e')),
@@ -281,7 +252,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       isVoiceMode = !isVoiceMode;
       if (!isVoiceMode) {
         Future.delayed(const Duration(milliseconds: 100), () {
-          focusNode.requestFocus();
+          textFocusNode.requestFocus();
         });
       } else {
         FocusScope.of(context).unfocus();
@@ -463,10 +434,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                           .reversed
                           .toList(),
                       isLoading: isLoading,
-                      scrollController: scrollController,
+                      scrollController: _scrollController,
                       showScrollToBottom: _showScrollToBottom,
                       onScrollToBottom: () {
-                        scrollController.animateTo(
+                        _scrollController.animateTo(
                           0,
                           duration: const Duration(milliseconds: 300),
                           curve: Curves.easeOut,
@@ -476,7 +447,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
             ),
             ChatInput(
               textController: textController,
-              focusNode: focusNode,
+              focusNode: textFocusNode,
               isVoiceMode: isVoiceMode,
               isListening: _isListening,
               voiceAnimation: _animation,

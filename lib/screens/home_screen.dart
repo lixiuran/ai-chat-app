@@ -155,9 +155,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
           });
         },
         localeId: _currentLocale?.localeId,
-        listenMode: ListenMode.confirmation,
-        cancelOnError: true,
-        partialResults: true,
+        listenOptions: SpeechListenOptions(
+          listenMode: ListenMode.confirmation,
+          cancelOnError: true,
+          partialResults: true,
+        ),
         listenFor: const Duration(seconds: 30),
         pauseFor: const Duration(seconds: 3),
       );

@@ -11,6 +11,10 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ConfigService().init();
   await initializeDateFormatting('zh_CN', null);
+  
+  // 配置Google Fonts，添加错误处理
+  GoogleFonts.config.allowRuntimeFetching = false;
+  
   runApp(const ProviderScope(child: MyApp()));
 }
 
@@ -26,12 +30,14 @@ class MyApp extends ConsumerWidget {
       theme: ThemeData(
         colorScheme: lightColorScheme,
         useMaterial3: true,
-        textTheme: GoogleFonts.interTextTheme(Theme.of(context).textTheme),
+        // 使用自定义文本主题
+        textTheme: createTextTheme(Typography.material2018().black),
       ),
       darkTheme: ThemeData(
         colorScheme: darkColorScheme,
         useMaterial3: true,
-        textTheme: GoogleFonts.interTextTheme(Theme.of(context).textTheme),
+        // 使用自定义文本主题
+        textTheme: createTextTheme(Typography.material2018().white),
       ),
       themeMode: themeMode,
       home: const HomeScreen(),

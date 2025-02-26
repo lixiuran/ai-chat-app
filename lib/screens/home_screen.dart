@@ -3,20 +3,20 @@ import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
-import 'package:intl/intl.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:uuid/uuid.dart';
-
-import '../providers/chat_provider.dart';
-import '../providers/conversation_provider.dart';
-import '../providers/model_provider.dart';
-import '../models/ai_model.dart';
-import '../models/conversation.dart';
-import '../widgets/home/chat_input.dart';
-import '../widgets/home/message_list.dart';
-import '../widgets/conversation_drawer.dart';
-import '../widgets/model_selector.dart';
+import 'package:intl/intl.dart';
+import 'package:ai_app/widgets/home/chat_input.dart';
+import 'package:ai_app/widgets/home/message_list.dart';
+import 'package:ai_app/widgets/conversation_drawer.dart';
+import 'package:ai_app/widgets/model_selector.dart';
+import 'package:ai_app/providers/conversation_provider.dart';
+import 'package:ai_app/providers/chat_provider.dart';
+import 'package:ai_app/providers/model_provider.dart';
+import 'package:ai_app/models/ai_model.dart';
+import 'package:ai_app/models/conversation.dart';
+import 'package:ai_app/services/chat_service.dart';
 
 /// 主屏幕
 /// 包含聊天界面、模型选择器和会话抽屉
@@ -32,8 +32,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
   late FocusNode textFocusNode;
   late AnimationController _animationController;
   bool _isListening = false;
-  final stt.SpeechToText _speech = stt.SpeechToText();
-  stt.LocaleName? _currentLocale;
+  final SpeechToText _speech = SpeechToText();
+  LocaleName? _currentLocale;
   final ScrollController _scrollController = ScrollController();
   bool _showScrollToBottom = false;
   bool isVoiceMode = false;
@@ -153,7 +153,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
             });
           },
           localeId: _currentLocale!.localeId,
-          listenMode: stt.ListenMode.confirmation,
+          listenMode: ListenMode.confirmation,
           cancelOnError: true,
           partialResults: true,
           listenFor: const Duration(seconds: 30),
@@ -168,7 +168,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
               }
             });
           },
-          listenMode: stt.ListenMode.confirmation,
+          listenMode: ListenMode.confirmation,
           cancelOnError: true,
           partialResults: true,
           listenFor: const Duration(seconds: 30),
@@ -209,11 +209,49 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
             await _sendMessage(textController.text, conversation, selectedModel);
             textController.clear();
           } else {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('请先创建或选择一个对话')),
+            // 如果没有当前会话，自动创建一个新会话
+            final now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
+            
+            // 创建新会话对象
+            final newConversation = Conversation(
+              id: const Uuid().v4(),
+              title: '新对话 $now',
+              createdAt: DateTime.now(),
+            );
+            
+            // 先创建会话
+            final newConversationId = await ref
+                .read(conversationsProvider.notifier)
+                .createConversation(newConversation.title);
+            
+            // 设置为当前会话
+            await ref
+                .read(currentConversationProvider.notifier)
+                .setCurrentConversation(newConversationId);
+            
+            // 等待一下确保状态更新
+            await Future.delayed(const Duration(milliseconds: 100));
+            
+            // 重新获取最新的conversations列表
+            final updatedConversations = ref.read(conversationsProvider);
+            
+            // 获取新创建的会话，如果找不到就使用我们预先创建的对象
+            Conversation conversationToUse;
+            try {
+              conversationToUse = updatedConversations.firstWhere(
+                (conv) => conv.id == newConversationId,
               );
+            } catch (e) {
+              // 如果找不到，使用我们预先创建的对象
+              conversationToUse = newConversation.copyWith(id: newConversationId);
+              developer.log('找不到新创建的会话，使用预创建对象: $e');
             }
+            
+            final selectedModel = ref.read(selectedModelProvider);
+            
+            // 发送消息
+            await _sendMessage(textController.text, conversationToUse, selectedModel);
+            textController.clear();
           }
         } else {
           if (mounted) {
@@ -455,12 +493,53 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
               onVoiceLongPressStart: _handleVoiceButtonPressed,
               onVoiceLongPressEnd: _handleVoiceButtonReleased,
               selectedModel: selectedModel,
-              onSendMessage: (text) {
+              onSendMessage: (text) async {
                 if (currentConversationId != null) {
                   final conversation = conversations.firstWhere(
                     (conv) => conv.id == currentConversationId,
                   );
                   _sendMessage(text, conversation, selectedModel);
+                } else {
+                  // 如果没有当前会话，自动创建一个新会话
+                  final now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
+                  
+                  // 创建新会话对象
+                  final newConversation = Conversation(
+                    id: const Uuid().v4(),
+                    title: '新对话 $now',
+                    createdAt: DateTime.now(),
+                  );
+                  
+                  // 先创建会话
+                  final newConversationId = await ref
+                      .read(conversationsProvider.notifier)
+                      .createConversation(newConversation.title);
+                  
+                  // 设置为当前会话
+                  await ref
+                      .read(currentConversationProvider.notifier)
+                      .setCurrentConversation(newConversationId);
+                  
+                  // 等待一下确保状态更新
+                  await Future.delayed(const Duration(milliseconds: 100));
+                  
+                  // 重新获取最新的conversations列表
+                  final updatedConversations = ref.read(conversationsProvider);
+                  
+                  // 获取新创建的会话，如果找不到就使用我们预先创建的对象
+                  Conversation conversationToUse;
+                  try {
+                    conversationToUse = updatedConversations.firstWhere(
+                      (conv) => conv.id == newConversationId,
+                    );
+                  } catch (e) {
+                    // 如果找不到，使用我们预先创建的对象
+                    conversationToUse = newConversation.copyWith(id: newConversationId);
+                    developer.log('找不到新创建的会话，使用预创建对象: $e');
+                  }
+                  
+                  // 发送消息
+                  _sendMessage(text, conversationToUse, selectedModel);
                 }
               },
             ),

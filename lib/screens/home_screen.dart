@@ -236,6 +236,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
               developer.log('找不到新创建的会话，使用预创建对象: $e');
             }
             
+            // 获取当前选择的模型
             final selectedModel = ref.read(selectedModelProvider);
             
             // 发送消息
@@ -247,15 +248,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text(
-                  '没有识别到文字，请重试',
+                  '说话时间太短',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 16,
                   ),
                   textAlign: TextAlign.center,
                 ),
-                backgroundColor: Color(0xFF2AAF62),
                 duration: Duration(seconds: 1),
+                behavior: SnackBarBehavior.floating,
+                margin: EdgeInsets.only(
+                  bottom: 200,
+                  left: 50,
+                  right: 50,
+                ),
               ),
             );
           }
@@ -527,8 +533,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
                     developer.log('找不到新创建的会话，使用预创建对象: $e');
                   }
                   
+                  final selectedModel = ref.read(selectedModelProvider);
+                  
                   // 发送消息
-                  _sendMessage(text, conversationToUse, selectedModel);
+                  await _sendMessage(text, conversationToUse, selectedModel);
+                  textController.clear();
                 }
               },
             ),

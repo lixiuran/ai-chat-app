@@ -51,7 +51,8 @@ class ChatInput extends ConsumerWidget {
             // DeepSeek R1 模型特性按钮
             if (selectedModel.id == 'deepseek-r1')
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Row(
                   children: [
                     FeatureButton(
@@ -68,7 +69,7 @@ class ChatInput extends ConsumerWidget {
                   ],
                 ),
               ),
-            
+
             // 输入区域
             Padding(
               padding: const EdgeInsets.all(8.0),
@@ -78,28 +79,39 @@ class ChatInput extends ConsumerWidget {
                   // 语音/键盘切换按钮
                   IconButton(
                     icon: Icon(
-                      isVoiceMode ? Icons.keyboard_alt_outlined : Icons.mic_none_outlined,
+                      isVoiceMode
+                          ? Icons.keyboard_alt_outlined
+                          : Icons.mic_none_outlined,
                       color: Theme.of(context).colorScheme.onSurface,
                       size: 28,
                     ),
                     onPressed: onVoiceModeToggle,
                     tooltip: isVoiceMode ? '切换键盘' : '切换语音',
                   ),
-                  
+
                   // 输入框区域
                   Expanded(
                     child: Container(
                       constraints: const BoxConstraints(maxHeight: 120),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(128),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest
+                            .withAlpha(128),
                         borderRadius: BorderRadius.circular(24),
                       ),
                       child: isVoiceMode
-                          ? VoiceInputButton(
-                              isListening: isListening,
-                              animation: voiceAnimation,
-                              onLongPressStart: onVoiceLongPressStart,
-                              onLongPressEnd: onVoiceLongPressEnd,
+                          ? SizedBox(
+                              height: 50,
+                              child: VoiceInputButton(
+                                isListening: isListening,
+                                animation: voiceAnimation,
+                                onLongPressStart: onVoiceLongPressStart,
+                                onLongPressEnd: onVoiceLongPressEnd,
+                                onLongPressCancel: () {
+                                  onVoiceLongPressEnd();
+                                },
+                              ),
                             )
                           : TextField(
                               controller: textController,
@@ -127,7 +139,7 @@ class ChatInput extends ConsumerWidget {
                             ),
                     ),
                   ),
-                  
+
                   // 发送按钮
                   IconButton(
                     icon: const Icon(Icons.send),
@@ -150,4 +162,4 @@ class ChatInput extends ConsumerWidget {
       ),
     );
   }
-} 
+}

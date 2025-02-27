@@ -48,7 +48,7 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
                     child: Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.7),
+                        color: Colors.black.withAlpha(179),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Column(
@@ -72,7 +72,7 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
                                           width: 3,
                                           height: 15 + (30 * animationValue),
                                           decoration: BoxDecoration(
-                                            color: Colors.white.withOpacity(1 - animationValue),
+                                            color: Colors.white.withAlpha(255 - (255 * animationValue).round()),
                                             borderRadius: BorderRadius.circular(1.5),
                                           ),
                                         );
@@ -175,8 +175,9 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
               color: _getBackgroundColor(context),
               boxShadow: widget.isListening && !_isCancelling
                   ? [
+                      // 当语音输入按钮被按下时,添加阴影效果以提供视觉反馈
                       BoxShadow(
-                        color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                        color: Theme.of(context).colorScheme.primary.withAlpha(77),
                         blurRadius: 8,
                         spreadRadius: 2,
                       ),
@@ -217,7 +218,7 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
       return Theme.of(context).colorScheme.errorContainer;
     }
     if (widget.isListening) {
-      return Theme.of(context).colorScheme.primary.withOpacity(0.15);
+      return Theme.of(context).colorScheme.primary.withAlpha(38);
     }
     return Theme.of(context).colorScheme.primary.withAlpha(26);
   }
